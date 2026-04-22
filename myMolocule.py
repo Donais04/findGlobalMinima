@@ -1,6 +1,5 @@
 import numpy as np
-import random
-import math
+import random, math, os, json
 
 class bond():
   bondType: int
@@ -15,7 +14,7 @@ class bond():
     
   
   def getMagnitude(self)-> float:
-    return math.pow(math.pow(self.vector[0],2.0)+math.pow(self.vector[1],2.0)+math.pow(self.vector[2],2.0),0.5)
+    return float(np.linalg.norm(self.vector))
   
   def getElements(self) -> str:
     return ''.join(sorted(str(self.atomFrom.element + self.atomTo.element)))
@@ -208,19 +207,6 @@ class atom():
           return False
       return True
     
-    #def checkBondLengths(self, minDev: float, maxDev: float):
-    #  for i in range(len(self.out)):
-    #    #print("indexes", self.index, ",", self.out[i].index, ", elements", self.element + self.out[i].element,end=", ")
-    #    aimLength = self.out[i].getAimMag()
-    #    mag = self.out[i].getMagnitude()
-    #    #print("nnn, ", mag, ", ", aimLength)
-    #    if (mag > aimLength * maxDev or mag < aimLength * minDev):
-    #      return False
-    #  for i in self.out:
-    #    if not(i.atomTo.checkBondLengths(minDev, maxDev)):
-    #      return False
-    #  return True
-    
     def __str__(self):
       returner: str = "atom " + str(self.index) + " at (" + str(self.x) + ", " + str(self.y) + ", " + str(self.z) + "). Bonds incoming from "
       for i in self.into:
@@ -234,8 +220,11 @@ class atom():
 class molocule():
   atoms: list[atom]
   bonds: list[bond]
+  lastScore: float
+  fromFile: str
   
-  def molToVector(self, mol: str):
+  def molToVector(self, mol: str, file: str = ""):
+    self.fromFile = file
     atomList = []
     bondList = []
 
@@ -247,13 +236,6 @@ class molocule():
         atomList.append(build)
       elif len(j) == 4:
         bondList.append([atomList[int(j[0])-1],atomList[int(j[1])-1],int(j[2])])
-        #print(int(j[0])-1, ", ", int(j[1])-1)
-        #atoms[int(j[0])-1].connections.append(atoms[int(j[1])-1])
-        #atoms[int(j[1])-1].connections.append(atoms[int(j[0])-1])
-
-        #atoms[int(j[0])-1].out.append(atoms[int(j[1])-1])
-        #if not(atoms[int(j[0])-1] in atoms[int(j[1])-1].out):
-        #  atoms[int(j[1])-1].into.append(atoms[int(j[0])-1])
     atomList[0].generateVectOut(bondList)
     trueBondList = []
     for i in atomList:
@@ -301,25 +283,42 @@ class molocule():
   
   
   
-  def scoreValidity(self, minAngle: float = np.pi/8.0, minLengthMult: float = 0.3, maxLengthMult: float = 1.8, minDistanceMult: float = 0.3) -> float:
+  def scoreValidity(self, powe: float = 2, minAngle: float = np.pi/8.0, minLengthMult: float = 0.3, maxLengthMult: float = 1.8, minDistanceMult: float = 0.3) -> float:
     score: float = 0.0
     for i in range(len(self.atoms)-1):
       for j in range(i+1,len(self.atoms)-1):
         if not(j in self.atoms[i].connections):          
           testBond = bond(self.atoms[i],self.atoms[j],1)
           if (testBond.getMagnitude() < testBond.getAimMag() * minDistanceMult):
-            score += testBond.getAimMag() * minDistanceMult - testBond.getMagnitude()
+            score += math.pow(testBond.getAimMag() * minDistanceMult - testBond.getMagnitude(),powe)
     for i in self.bonds:
       if i.getMagnitude() > i.getAimMag() * maxLengthMult:
-        score += i.getMagnitude() - i.getAimMag() * maxLengthMult
+        score += math.pow(i.getMagnitude() - i.getAimMag() * maxLengthMult,powe)
       elif i.getMagnitude() < i.getAimMag() * minLengthMult:
-        score += i.getAimMag() * minLengthMult - i.getMagnitude()
+        score += math.pow(i.getAimMag() * minLengthMult - i.getMagnitude(),powe)
     for i in self.atoms:
         for j in i.into:
           for k in i.out:
             if (j.getAngleTo(k) < minAngle):
-              score += (minAngle - j.getAngleTo(k)) * np.pi
+              score += math.pow((minAngle - j.getAngleTo(k)) * np.pi,powe)
+    self.lastScore = score
     return score #and self.atoms[0].checkBondLengths(minLengthMult,maxLengthMult)
+  
+  def saveMol(self, path: str = "savedFiles"):
+    name = str(len(os.listdir(path)))+".mol"
+    with open(path + "/" + name, 'w') as g:
+      g.write(self.vectorToMol())
+    data = ""
+    with open("moloculeIndex.json", 'r') as f:
+      data = json.loads(f.read())
+      data.append({
+        "fileName":name,
+        "score":self.lastScore,
+        "molFrom":self.fromFile
+      })
+    with open("moloculeIndex.json", 'w') as f:
+      f.write(json.dumps(data))
+      
   
   
   def __str__(self):

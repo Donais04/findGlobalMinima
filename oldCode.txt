@@ -71,3 +71,18 @@ def helpValidity(self, maxAdjust: float = 10.0, minAngle: float = np.pi/8.0, min
       if i.getMagnitude() > i.getAimMag() * maxLengthMult or i.getMagnitude() < i.getAimMag() * minLengthMult:
         return False
     return self.atoms[0].checkAngles(minAngle) #and self.atoms[0].checkBondLengths(minLengthMult,maxLengthMult)
+
+
+    
+    def checkBondLengths(self, minDev: float, maxDev: float):
+      for i in range(len(self.out)):
+        #print("indexes", self.index, ",", self.out[i].index, ", elements", self.element + self.out[i].element,end=", ")
+        aimLength = self.out[i].getAimMag()
+        mag = self.out[i].getMagnitude()
+        #print("nnn, ", mag, ", ", aimLength)
+        if (mag > aimLength * maxDev or mag < aimLength * minDev):
+          return False
+      for i in self.out:
+        if not(i.atomTo.checkBondLengths(minDev, maxDev)):
+          return False
+      return True
