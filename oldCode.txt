@@ -1,0 +1,73 @@
+def helpValidity(self, maxAdjust: float = 10.0, minAngle: float = np.pi/8.0, minLengthMult: float = 0.3, maxLengthMult: float = 1.8, shiftAmount: float = 0.1, minDistanceMult: float = 0.3):
+    #print("helping")
+    wrong = True
+    while wrong:
+      wrong = False
+      if not(maxAdjust < 0.0):
+        for i in range(len(self.atoms)-1):
+          for j in range(i+1,len(self.atoms)-1):
+            if not(j in self.atoms[i].connections):          
+              testBond = bond(self.atoms[i],self.atoms[j],1)
+              dist = 0.0
+              while (testBond.getMagnitude() < testBond.getAimMag() * minDistanceMult):
+                wrong = True
+                if len(self.atoms[i].connections) < len(self.atoms[j].connections):
+                  self.atoms[i].shiftXYZ([testBond.vector[0]*-1*shiftAmount,
+                                          testBond.vector[1]*-1*shiftAmount,
+                                          testBond.vector[2]*-1*shiftAmount])
+                else:
+                  self.atoms[j].shiftXYZ([testBond.vector[0]*shiftAmount,
+                                          testBond.vector[1]*shiftAmount,
+                                          testBond.vector[2]*shiftAmount])
+                dist += shiftAmount
+                if dist >= maxAdjust:
+                  break
+      for i in self.bonds:
+        if i.getMagnitude() > i.getAimMag() * maxLengthMult:
+          i.setBondLength(i.getAimMag() * maxLengthMult)
+          wrong = True
+        elif i.getMagnitude() < i.getAimMag() * minLengthMult:
+          i.setBondLength(i.getAimMag() * minLengthMult)
+          wrong = True
+      for i in self.atoms:
+        for j in i.into:
+          for k in i.out:
+            if (j.getAngleTo(k) < minAngle):
+              k.changeBondPitch((random.random()-0.5)*shiftAmount*4)
+              k.changeBondYaw((random.random()-0.5)*shiftAmount*4)
+              wrong = True
+
+
+
+              
+    
+    
+    self.helpValidity(minDistanceMult=minDistanceMult, maxAdjust = -1.0)
+    for i in range(len(self.atoms)-1):
+      for j in range(i+1,len(self.atoms)-1):
+        if not(j in self.atoms[i].connections):          
+          testBond = bond(self.atoms[i],self.atoms[j],1)
+          #print(testBond.getMagnitude())
+          if (testBond.getMagnitude() < testBond.getAimMag() * minDistanceMult):
+            return False
+    for i in self.bonds:
+      if i.getMagnitude() > i.getAimMag() * maxLengthMult or i.getMagnitude() < i.getAimMag() * minLengthMult:
+        return False
+    return self.atoms[0].checkAngles(minAngle)
+
+
+
+
+
+    def getValidity(self, minAngle: float = np.pi/8.0, minLengthMult: float = 0.3, maxLengthMult: float = 1.8, minDistanceMult: float = 0.3):
+    for i in range(len(self.atoms)-1):
+      for j in range(i+1,len(self.atoms)-1):
+        if not(j in self.atoms[i].connections):          
+          testBond = bond(self.atoms[i],self.atoms[j],1)
+          #print(testBond.getMagnitude())
+          if (testBond.getMagnitude() < testBond.getAimMag() * minDistanceMult):
+            return False
+    for i in self.bonds:
+      if i.getMagnitude() > i.getAimMag() * maxLengthMult or i.getMagnitude() < i.getAimMag() * minLengthMult:
+        return False
+    return self.atoms[0].checkAngles(minAngle) #and self.atoms[0].checkBondLengths(minLengthMult,maxLengthMult)
