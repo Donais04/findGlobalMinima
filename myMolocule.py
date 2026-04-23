@@ -124,6 +124,17 @@ class bond():
         return 1.55
       elif ty == 2:
         return 1.62
+    elif el == "HH":
+      return 0.85
+    elif el == "CP":
+      return 1.83
+    elif el == "HP":
+      return 1.42
+    elif el == "PP":
+      return 2.17
+    elif el == "NP":
+      return 1.49
+    raise TypeError("no element found for " + el)
     return -1.0
     
     
@@ -276,47 +287,134 @@ class molocule():
     returnBuilder.append("M  END")
     return "\n".join(returnBuilder)
   
+  def scoreFull(self) -> float:
+    
+    return 0.0
+  
   def resetBondAngles(self, axis: str = 'x'):
     for i in range(len(self.bonds)):
       self.bonds[i].resetAngle(axis)
     self.atoms[0].startRegen()
   
-  
-  
-  def scoreValidity(self, powe: float = 2, minAngle: float = np.pi/8.0, minLengthMult: float = 0.3, maxLengthMult: float = 1.8, minDistanceMult: float = 0.3) -> float:
-    score: float = 0.0
-    for i in range(len(self.atoms)-1):
-      for j in range(i+1,len(self.atoms)-1):
-        if not(j in self.atoms[i].connections):          
-          testBond = bond(self.atoms[i],self.atoms[j],1)
-          if (testBond.getMagnitude() < testBond.getAimMag() * minDistanceMult):
-            score += math.pow(testBond.getAimMag() * minDistanceMult - testBond.getMagnitude(),powe)
+  def vectorToList(self) -> list[float]:
+    returner = []
     for i in self.bonds:
-      if i.getMagnitude() > i.getAimMag() * maxLengthMult:
-        score += math.pow(i.getMagnitude() - i.getAimMag() * maxLengthMult,powe)
-      elif i.getMagnitude() < i.getAimMag() * minLengthMult:
-        score += math.pow(i.getAimMag() * minLengthMult - i.getMagnitude(),powe)
-    for i in self.atoms:
-        for j in i.into:
-          for k in i.out:
-            if (j.getAngleTo(k) < minAngle):
-              score += math.pow((minAngle - j.getAngleTo(k)) * np.pi,powe)
+      returner.append(i.pitch)
+      returner.append(i.yaw)
+      returner.append(i.getMagnitude())
+    return returner
+  
+  def vectorToListXYZ(self) -> list[float]:
+    returner = []
+    for i in self.bonds:
+      returner.append(i.vector[0])
+      returner.append(i.vector[1])
+      returner.append(i.vector[2])
+    return returner
+  
+  def listToVector(self, l: list[float]) -> None:
+    count = 0
+    for i in self.bonds:
+      i.setBondPitch(l[count])
+      i.setBondYaw(l[count+1])
+      i.setBondLength(l[count+2])
+      count += 3
+    self.atoms[0].startRegen()
+      
+  def listToVectorXYZ(self, l: list[float]) -> None:
+    count = 0
+    for i in self.bonds:
+      i.vector[0] = l[count]
+      i.vector[1] = l[count+1]
+      i.vector[2] = l[count+2]
+      count += 3
+    self.atoms[0].startRegen()
+  
+  def rando(self) -> None:
+    for i in self.bonds:
+      i.setBondPitch((random.random() - 0.5) * 2 * np.pi * 2)
+      i.setBondYaw((random.random() - 0.5) * 2 * np.pi * 2)
+    self.atoms[0].startRegen()
+    
+  
+  def scoreValidity(
+    self,
+    power: float = 2.0,
+    minAngle: float = np.pi / 4.0,
+    minLengthMult: float = 0.8,
+    maxLengthMult: float = 1.2,
+    minDistanceMult: float = 1) -> float:
+    
+    score: float = 0.0
+    atoms = self.atoms
+    bonds = self.bonds
+    n = len(atoms)
+    anglePenaltyFactor = np.pi
+
+    # Check for atoms too close together (non-bonded)
+    for i in range(n - 1):
+        atomI = atoms[i]
+        connectionsI = atomI.connections 
+        xi, yi, zi = atomI.x, atomI.y, atomI.z
+
+        for j in range(i + 1, n):
+            if j not in connectionsI:
+                atomJ = atoms[j]
+                dx = atomJ.x - xi
+                dy = atomJ.y - yi
+                dz = atomJ.z - zi
+                distance = math.sqrt(dx * dx + dy * dy + dz * dz)
+
+                # Compute ideal distance for non-bonded contact
+                bondIJ = bond(atomI, atomJ, 1)
+                idealDistance = bondIJ.getAimMag() * minDistanceMult
+
+                if distance < idealDistance:
+                    score += (idealDistance - distance) ** power
+
+    for bonda in bonds:
+        aimMagnitude = bonda.getAimMag()
+        magnitude = bonda.getMagnitude()
+
+        if magnitude > aimMagnitude * maxLengthMult:
+            score += (magnitude - aimMagnitude * maxLengthMult) ** power
+        elif magnitude < aimMagnitude * minLengthMult:
+            score += (aimMagnitude * minLengthMult - magnitude) ** power
+
+    for atom in atoms:
+        atomInto = atom.into
+        atomOut = atom.out
+
+        for incoming in atomInto:
+            incomingVector = np.array(incoming.vector)
+
+            for outgoing in atomOut:
+                outgoingVector = np.array(outgoing.vector)
+                dotProduct = np.dot(incomingVector, outgoingVector)
+                magnitudeProduct = np.linalg.norm(incomingVector) * np.linalg.norm(outgoingVector)
+                cosAngle = dotProduct / magnitudeProduct
+                angle = np.arccos(np.clip(cosAngle, -1, 1))
+
+                if angle < minAngle:
+                    score += ((minAngle - angle) * anglePenaltyFactor) ** power
+
     self.lastScore = score
-    return score #and self.atoms[0].checkBondLengths(minLengthMult,maxLengthMult)
+    return score
+
   
   def saveMol(self, path: str = "savedFiles"):
     name = str(len(os.listdir(path)))+".mol"
     with open(path + "/" + name, 'w') as g:
       g.write(self.vectorToMol())
     data = ""
-    with open("moloculeIndex.json", 'r') as f:
+    with open("moleculeIndex.json", 'r') as f:
       data = json.loads(f.read())
       data.append({
         "fileName":name,
         "score":self.lastScore,
         "molFrom":self.fromFile
       })
-    with open("moloculeIndex.json", 'w') as f:
+    with open("moleculeIndex.json", 'w') as f:
       f.write(json.dumps(data))
       
   

@@ -635,17 +635,17 @@ class Molecule:
 
         # Build atom lines
         for atom in self.atoms:
-            coords = [round(atom.x, 3), round(atom.y, 3), round(atom.z, 3)]
+            coords = [round(atom.x, 4), round(atom.y, 4), round(atom.z, 4)]
             formattedCoords = []
             for coord in coords:
-                coordStr = f"{coord:.3f}"
+                coordStr = f"{coord:.4f}"
                 if coord >= 0:
-                    formattedCoords.append(f"    {coordStr}")
-                else:
                     formattedCoords.append(f"   {coordStr}")
+                else:
+                    formattedCoords.append(f"  {coordStr}")
 
             atomLine = (
-                f"{formattedCoords[0]} {formattedCoords[1]} {formattedCoords[2]} "
+                f" {formattedCoords[0]} {formattedCoords[1]} {formattedCoords[2]} "
                 f"{atom.element}   0  0  0  0  0  0  0  0  0  0  0  0"
             )
             builder.append(atomLine)
@@ -689,10 +689,10 @@ class Molecule:
     def scoreValidity(
         self,
         power: float = 2.0,
-        minAngle: float = np.pi / 8.0,
-        minLengthMult: float = 0.3,
-        maxLengthMult: float = 1.8,
-        minDistanceMult: float = 0.3
+        minAngle: float = np.pi / 4.0,
+        minLengthMult: float = 0.8,
+        maxLengthMult: float = 1.2,
+        minDistanceMult: float = 1
     ) -> float:
         """
         Calculate a score measuring molecular validity.

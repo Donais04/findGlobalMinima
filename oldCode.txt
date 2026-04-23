@@ -86,3 +86,37 @@ def helpValidity(self, maxAdjust: float = 10.0, minAngle: float = np.pi/8.0, min
         if not(i.atomTo.checkBondLengths(minDev, maxDev)):
           return False
       return True
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      def scoreValidity(self, powe: float = 2, minAngle: float = np.pi/8.0, minLengthMult: float = 0.3, maxLengthMult: float = 1.8, minDistanceMult: float = 0.3) -> float:
+    score: float = 0.0
+    for i in range(len(self.atoms)-1):
+      for j in range(i+1,len(self.atoms)-1):
+        if not(j in self.atoms[i].connections):          
+          testBond = bond(self.atoms[i],self.atoms[j],1)
+          if (testBond.getMagnitude() < testBond.getAimMag() * minDistanceMult):
+            score += math.pow(testBond.getAimMag() * minDistanceMult - testBond.getMagnitude(),powe)
+    for i in self.bonds:
+      if i.getMagnitude() > i.getAimMag() * maxLengthMult:
+        score += math.pow(i.getMagnitude() - i.getAimMag() * maxLengthMult,powe)
+      elif i.getMagnitude() < i.getAimMag() * minLengthMult:
+        score += math.pow(i.getAimMag() * minLengthMult - i.getMagnitude(),powe)
+    for i in self.atoms:
+        for j in i.into:
+          for k in i.out:
+            if (j.getAngleTo(k) < minAngle):
+              score += math.pow((minAngle - j.getAngleTo(k)) * np.pi,powe)
+    self.lastScore = score
+    return score #and self.atoms[0].checkBondLengths(minLengthMult,maxLengthMult)
