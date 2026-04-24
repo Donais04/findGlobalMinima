@@ -120,3 +120,38 @@ def helpValidity(self, maxAdjust: float = 10.0, minAngle: float = np.pi/8.0, min
               score += math.pow((minAngle - j.getAngleTo(k)) * np.pi,powe)
     self.lastScore = score
     return score #and self.atoms[0].checkBondLengths(minLengthMult,maxLengthMult)
+
+
+
+
+    def fullRandom(myMol):
+  count = 0
+  while not(myMol.scoreValidity(shifting=True, minDistanceMult=0.6)):
+    count += 1
+    print(count)
+    for i in myMol.bonds:
+      i.setBondPitch((random.random() - 0.5) * 2 * np.pi * 2)
+      i.setBondYaw((random.random() - 0.5) * 2 * np.pi * 2)
+      
+  return count
+      
+      
+      
+def shiftRandom(myMol):
+  count = 0
+  best = myMol
+  bestA = 100000.0
+  while True:
+    count += 1
+    score = myMol.scoreValidity(minDistanceMult=1)
+    print(count)
+    if score < bestA:
+      bestA = score
+      best = copy.deepcopy(myMol)
+    if score < 0.01:
+      break
+    for i in myMol.bonds:
+      i.setBondPitch((random.random() - 0.5) * 2 * np.pi / 2)
+      i.setBondYaw((random.random() - 0.5) * 2 * np.pi / 2)
+    if count == 200:
+      return best

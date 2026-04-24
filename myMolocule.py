@@ -1,6 +1,15 @@
 import numpy as np
 import random, math, os, json
 
+from openmm.app import *
+from openmm import *
+from openmm.unit import *
+import numpy as np
+from rdkit import Chem
+from openmmforcefields.generators import GAFFTemplateGenerator
+from rdkit.Chem import rdForceFieldHelpers
+
+
 class bond():
   bondType: int
   vector: list[float]
@@ -287,9 +296,193 @@ class molocule():
     returnBuilder.append("M  END")
     return "\n".join(returnBuilder)
   
-  def scoreFull(self) -> float:
+  def vectorToInp(
+    self,
+    name: str,
+    metho: str = "r2SCAN-3c"
+    ) -> str:
+    builder = "#\n# " + name + "\n#\n%MaxCore 4000\n! " + metho + " AutoAux\n\n\n\n* xyz 0 1\n"
+    for i in self.atoms:
+      builder += i.element
+      if i.x < 0.0:
+        builder += " " + str(i.x)
+      else:
+        builder += "  " + str(i.x)
+      if i.y < 0.0:
+        builder += " " + str(i.y)
+      else:
+        builder += "  " + str(i.y)
+      if i.z < 0.0:
+        builder += " " + str(i.z) + "\n"
+      else:
+        builder += "  " + str(i.z) + "\n"
     
-    return 0.0
+    return builder + "END"
+
+  def vectorToPDB(self, residueName: str = "UNL", chainId: str = "A") -> str: #AI written
+    """
+    Convert a molocule to a PDB-format string.
+
+    Parameters
+    ----------
+    mol : molocule
+        The molecule to convert.
+    residueName : str, optional
+        Three-letter residue name. Defaults to "MOL".
+    chainId : str, optional
+        Single character chain identifier. Defaults to "A".
+
+    Returns
+    -------
+    str
+        PDB-formatted string.
+    """
+    lines = []
+    lines.append("HEADER    MOLECULE TO PDB CONVERSION")
+    lines.append("TITLE     CREATED FROM MOLECULE CLASS")
+    lines.append(f"REMARK    {len(self.atoms)} ATOMS, {len(self.bonds)} BONDS")
+
+    atomSerial = 1
+    for atom in self.atoms:
+        recordType = "ATOM  "
+        serial = f"{atomSerial:5d}"
+        atomName = f"{atom.element:<4s}"
+        altLoc = " "
+        resName = f"{residueName:<3s}"
+        chain = chainId[0]
+        resSeq = f"{1:4d}"
+        iCode = " "
+        x = f"{atom.x:8.3f}"
+        y = f"{atom.y:8.3f}"
+        z = f"{atom.z:8.3f}"
+        occupancy = f"{1.00:6.2f}"
+        tempFactor = f"{0.00:6.2f}"
+        element = f"{atom.element:>2s}"
+        charge = "  "
+
+        line = (
+            f"{recordType}{serial} {atomName}{altLoc}{resName} "
+            f"{chain}{resSeq}{iCode}   {x}{y}{z}"
+            f"{occupancy}{tempFactor}          {element}{charge}"
+        )
+        lines.append(line)
+        atomSerial += 1
+
+    for atom in self.atoms:
+        serial = atom.index + 1
+        connectedSerials = []
+
+        for bond in atom.out:
+            connectedSerials.append(bond.atomTo.index + 1)
+
+        for bond in atom.into:
+            if bond.atomFrom.index + 1 not in connectedSerials:
+                connectedSerials.append(bond.atomFrom.index + 1)
+
+        if connectedSerials:
+            conectLine = "CONECT" + f"{serial:5d}"
+            for connSerial in connectedSerials:
+                conectLine += f"{connSerial:5d}"
+            lines.append(conectLine)
+
+    lines.append("END\n")
+    return "\n".join(lines)
+  
+  
+  def toRDKitMol(self, addHydrogens: bool = False) -> Chem.Mol: #AI written
+    """
+    Convert a Molecule to an RDKit Mol object.
+
+    Parameters
+    ----------
+    mol : Molecule
+        The molecule to convert.
+    addHydrogens : bool, optional
+        Whether to add implicit hydrogens. Defaults to False.
+
+    Returns
+    -------
+    Chem.Mol
+        RDKit Mol object with 3D coordinates.
+    """
+    # Create empty editable molecule
+    rdkMol = Chem.RWMol()
+
+    # Track index mapping
+    atomIndexMap = {}
+
+    # Add atoms
+    for atom in self.atoms:
+        rdAtom = Chem.Atom(atom.element)
+        atomIndex = rdkMol.AddAtom(rdAtom)
+        atomIndexMap[atom.index] = atomIndex
+
+    # Add bonds
+    for bond in self.bonds:
+        idx1 = atomIndexMap[bond.atomFrom.index]
+        idx2 = atomIndexMap[bond.atomTo.index]
+
+        # Convert bond type to RDKit bond type
+        if bond.bondType == 1:
+            rdBondType = Chem.BondType.SINGLE
+        elif bond.bondType == 2:
+            rdBondType = Chem.BondType.DOUBLE
+        elif bond.bondType == 3:
+            rdBondType = Chem.BondType.TRIPLE
+        else:
+            rdBondType = Chem.BondType.SINGLE
+
+        rdkMol.AddBond(idx1, idx2, rdBondType)
+
+    # Convert to editable molecule
+    rdkMol = rdkMol.GetMol()
+
+    # CRITICAL: Sanitize the molecule before accessing atom properties
+    try:
+        Chem.SanitizeMol(rdkMol)
+    except Exception as e:
+        print(f"Sanitization warning: {e}")
+        # Try to fix common issues
+        rdkMol = Chem.RWMol(rdkMol)
+        rdkMol.UpdatePropertyCache()
+        Chem.SanitizeMol(rdkMol)
+        rdkMol = rdkMol.GetMol()
+
+    # Add 3D conformer with coordinates
+    conformer = Chem.Conformer(len(self.atoms))
+    for atom in self.atoms:
+        conformer.SetAtomPosition(atom.index, (atom.x, atom.y, atom.z))
+    rdkMol.AddConformer(conformer)
+
+    # Add hydrogens if requested
+    if addHydrogens:
+        rdkMol = Chem.AddHs(rdkMol)
+        # Regenerate coordinates after adding Hs
+        rdkMol.GetConformer(0).SetAtomPosition
+
+    return rdkMol
+
+
+
+
+
+  def scoreFull(self, args = {}) -> float:
+    score = rdForceFieldHelpers.MMFFOptimizeMoleculeConfs(self.toRDKitMol(), maxIters=0)[0][1]
+    self.lastScore = score
+    return score
+    s1 = self.scoreValidity(**args)
+    if sum(s1) <= 0.0:
+      return rdForceFieldHelpers.MMFFOptimizeMoleculeConfs(self.toRDKitMol(), maxIters=0)[0][1]
+    return sum(s1) + 12345678
+  
+  def scoreVerb(self, args = {}):
+    score = rdForceFieldHelpers.MMFFOptimizeMoleculeConfs(self.toRDKitMol(), maxIters=0)[0][1]
+    self.lastScore = score
+    return score
+    s1 = self.scoreValidity(**args)
+    if sum(s1) <= 0.0:
+      return rdForceFieldHelpers.MMFFOptimizeMoleculeConfs(self.toRDKitMol(), maxIters=0)[0][1]
+    return s1
   
   def resetBondAngles(self, axis: str = 'x'):
     for i in range(len(self.bonds)):
@@ -331,6 +524,7 @@ class molocule():
     self.atoms[0].startRegen()
   
   def rando(self) -> None:
+    self.resetBondAngles()
     for i in self.bonds:
       i.setBondPitch((random.random() - 0.5) * 2 * np.pi * 2)
       i.setBondYaw((random.random() - 0.5) * 2 * np.pi * 2)
@@ -340,12 +534,12 @@ class molocule():
   def scoreValidity(
     self,
     power: float = 2.0,
-    minAngle: float = np.pi / 4.0,
-    minLengthMult: float = 0.8,
-    maxLengthMult: float = 1.2,
-    minDistanceMult: float = 1) -> float:
+    minAngle: float = np.pi / 8.0,
+    minLengthMult: float = 0.6,
+    maxLengthMult: float = 1.6,
+    minDistanceMult: float = 0.7) -> list[float]:
     
-    score: float = 0.0
+    score: list[float] = [0.0, 0.0, 0.0, 0.0]
     atoms = self.atoms
     bonds = self.bonds
     n = len(atoms)
@@ -370,16 +564,16 @@ class molocule():
                 idealDistance = bondIJ.getAimMag() * minDistanceMult
 
                 if distance < idealDistance:
-                    score += (idealDistance - distance) ** power
+                    score[0] += (idealDistance - distance) ** power
 
     for bonda in bonds:
         aimMagnitude = bonda.getAimMag()
         magnitude = bonda.getMagnitude()
 
         if magnitude > aimMagnitude * maxLengthMult:
-            score += (magnitude - aimMagnitude * maxLengthMult) ** power
+            score[1] += (magnitude - aimMagnitude * maxLengthMult) ** power
         elif magnitude < aimMagnitude * minLengthMult:
-            score += (aimMagnitude * minLengthMult - magnitude) ** power
+            score[2] += (aimMagnitude * minLengthMult - magnitude) ** power
 
     for atom in atoms:
         atomInto = atom.into
@@ -396,16 +590,23 @@ class molocule():
                 angle = np.arccos(np.clip(cosAngle, -1, 1))
 
                 if angle < minAngle:
-                    score += ((minAngle - angle) * anglePenaltyFactor) ** power
+                    score[3] += ((minAngle - angle) * anglePenaltyFactor) ** power
 
-    self.lastScore = score
+    self.lastScore = sum(score)
     return score
 
   
-  def saveMol(self, path: str = "savedFiles"):
-    name = str(len(os.listdir(path)))+".mol"
+  def saveMol(self, path: str = "savedFiles", fileType: str = "mol"):
+    name = str(len(os.listdir(path))) + "." + fileType
+    writer = ""
+    if fileType == "mol":
+      writer = self.vectorToMol()
+    elif fileType == "xyz":
+      writer = self.vectorToInp(name[:-4])
+    elif fileType == "pdb":
+      writer = self.vectorToPDB()
     with open(path + "/" + name, 'w') as g:
-      g.write(self.vectorToMol())
+      g.write(writer)
     data = ""
     with open("moleculeIndex.json", 'r') as f:
       data = json.loads(f.read())

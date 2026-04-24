@@ -1,64 +1,54 @@
 from myMolocule import *
 from algs import *
 import numpy as np
-import random
-import time
+import random, os, sys
 import copy
 from scipy.optimize import minimize, basinhopping
+import asyncio
 
 
-_FILE_TO_READ = "lessNAD+.mol"
+_FILE_TO_READ = "leastNAD+.mol"
 
-def fullRandom(myMol):
-  count = 0
-  while not(myMol.scoreValidity(shifting=True, minDistanceMult=0.6)):
-    count += 1
-    print(count)
-    for i in myMol.bonds:
-      i.setBondPitch((random.random() - 0.5) * 2 * np.pi * 2)
-      i.setBondYaw((random.random() - 0.5) * 2 * np.pi * 2)
-      
-  return count
-      
-      
-      
-def shiftRandom(myMol):
-  count = 0
-  best = myMol
-  bestA = 100000.0
-  while True:
-    count += 1
-    score = myMol.scoreValidity(minDistanceMult=1)
-    print(count)
-    if score < bestA:
-      bestA = score
-      best = copy.deepcopy(myMol)
-    if score < 0.01:
-      break
-    for i in myMol.bonds:
-      i.setBondPitch((random.random() - 0.5) * 2 * np.pi / 2)
-      i.setBondYaw((random.random() - 0.5) * 2 * np.pi / 2)
-    if count == 200:
-      return best
+async def runXTimesLimitedConcurrency(x: int, mol, maxConcurrent: int = 10): #AI written
+    """
+    Run function x times with limited concurrency.
 
-def norm():
+    Parameters
+    ----------
+    x : int
+        Number of times to run.
+    maxConcurrent : int, optional
+        Maximum concurrent tasks. Defaults to 10.
+
+    Returns
+    -------
+    list
+        List of results.
+    """
+    semaphore = asyncio.Semaphore(maxConcurrent)
+
+    async def limitedRun():
+        async with semaphore:
+            return await norm(mol)
+
+    tasks = [limitedRun() for _ in range(x)]
+    results = await asyncio.gather(*tasks)
+    return results
+
+
+async def norm(mol):
   print("start")
-  molString = open(_FILE_TO_READ).read()
-  mol = molocule()
-  mol.molToVector(molString, _FILE_TO_READ)
-  mol.resetBondAngles()
-  mol.rando()
 
   def objective(coords, mola):
       mola.listToVectorXYZ(coords)
-      return mola.scoreValidity(minDistanceMult = 1.3)
+      return mola.scoreFull()
 
 
   kwargs = {
           'fun': lambda coords: objective(coords, mol),
           'x0': mol.vectorToListXYZ(),
           'method': 'BFGS',
-          'tol': 1e-6,
+          'tol': 1e-2,
           'options': {'maxiter': 1000, 'disp': True}
       }
 
@@ -70,28 +60,22 @@ def norm():
   #print(result.x)
 
   mol.listToVectorXYZ(result.x)
-
-  print(mol.scoreValidity())
-
+  
   mol.saveMol()
+  print(mol.scoreFull())
 
-def notnorm():
+async def notnorm(mol):
   print("start")
-  molString = open(_FILE_TO_READ).read()
-  mol = molocule()
-  mol.molToVector(molString, _FILE_TO_READ)
-  mol.resetBondAngles()
-  mol.rando()
 
   def objective(coords, mola: molocule):
       mola.listToVectorXYZ(coords)
-      return mola.scoreValidity(minDistanceMult = 1.5,power = 5)
+      return mola.scoreFull()
 
 
   kwargs = {
           'func': lambda coords: objective(coords, mol),
           'x0': mol.vectorToListXYZ(),
-          'T': 1.0,
+          'T': 20.0,
           'niter_success':5,
           'disp':True
       }
@@ -100,10 +84,42 @@ def notnorm():
 
   mol.listToVectorXYZ(result.x)
 
-  print(mol.scoreValidity())
-
   mol.saveMol()
-notnorm()
+  print(mol.scoreFull())
+
+
+
+
+async def func(t, mol):
+  await runXTimesLimitedConcurrency(t, mol, maxConcurrent=4)
+
+
+myMol = molocule()
+myMol.molToVector(open(_FILE_TO_READ).read())
+
+if __name__ == "__main__":
+    t = int(sys.argv[1])
+    print(t)
+    for i in range(t):
+      myMol = molocule()
+      myMol.molToVector(open(_FILE_TO_READ).read())
+      myMol.rando()
+      asyncio.run(norm(myMol))
+    
+    
+    
+    
+    
+# Minimize
+#minimized = mol.minimizeOpenFF()
+#print(f"Minimized score: {minimized.scoreValidity()}")
+
+
+
+#mola = norm()
+#print(mola.scoreValidity())
+#mola.saveMol(fileType="pdb")
+
 ## Create initial molecule from mol file
 #molString = open(_FILE_TO_READ).read()
 #mol = Molecule()
