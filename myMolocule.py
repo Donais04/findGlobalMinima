@@ -243,7 +243,7 @@ class molocule():
   lastScore: float
   fromFile: str
   
-  def molToVector(self, mol: str, file: str = ""):
+  def molToMine(self, mol: str, file: str = ""):
     self.fromFile = file
     atomList = []
     bondList = []
@@ -489,7 +489,7 @@ class molocule():
       self.bonds[i].resetAngle(axis)
     self.atoms[0].startRegen()
   
-  def vectorToList(self) -> list[float]:
+  def mineToList(self) -> list[float]:
     returner = []
     for i in self.bonds:
       returner.append(i.pitch)
@@ -497,7 +497,7 @@ class molocule():
       returner.append(i.getMagnitude())
     return returner
   
-  def vectorToListXYZ(self) -> list[float]:
+  def mineToListXYZ(self) -> list[float]:
     returner = []
     for i in self.bonds:
       returner.append(i.vector[0])
@@ -505,7 +505,23 @@ class molocule():
       returner.append(i.vector[2])
     return returner
   
-  def listToVector(self, l: list[float]) -> None:
+  def mineToVectorsXYZ(self) -> list[tuple[float,float,float]]:
+    returner = []
+    for i in self.bonds:
+      returner.append((i.vector[0],i.vector[1],i.vector[2]))
+    return returner
+  
+  def vectorsToMineXYZ(self, l: list[tuple[float,float,float]]) -> None:
+    count = 0
+    for i in self.bonds:
+      i.setBondPitch(l[count][0])
+      i.setBondYaw(l[count][1])
+      i.setBondLength(l[count][2])
+      count += 1
+    self.atoms[0].startRegen()
+      
+  
+  def listToMine(self, l: list[float]) -> None:
     count = 0
     for i in self.bonds:
       i.setBondPitch(l[count])
@@ -514,7 +530,7 @@ class molocule():
       count += 3
     self.atoms[0].startRegen()
       
-  def listToVectorXYZ(self, l: list[float]) -> None:
+  def listToMineXYZ(self, l: list[float]) -> None:
     count = 0
     for i in self.bonds:
       i.vector[0] = l[count]
@@ -596,7 +612,7 @@ class molocule():
     return score
 
   
-  def saveMol(self, path: str = "savedFiles", fileType: str = "mol"):
+  def saveMol(self, path: str = "savedFiles", fileType: str = "mol", other: list[list] = []):
     name = str(len(os.listdir(path))) + "." + fileType
     writer = ""
     if fileType == "mol":
@@ -610,11 +626,15 @@ class molocule():
     data = ""
     with open("moleculeIndex.json", 'r') as f:
       data = json.loads(f.read())
-      data.append({
+      placer = {
         "fileName":name,
         "score":self.lastScore,
         "molFrom":self.fromFile
-      })
+      }
+      for i in range(len(other)):
+        placer[other[i][0]] = other[i][1]
+      data.append(placer)
+      
     with open("moleculeIndex.json", 'w') as f:
       f.write(json.dumps(data))
       

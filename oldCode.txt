@@ -155,3 +155,80 @@ def shiftRandom(myMol):
       i.setBondYaw((random.random() - 0.5) * 2 * np.pi / 2)
     if count == 200:
       return best
+
+
+      
+def mini(mol):
+  print("start")
+
+
+  kwargs = {
+          'fun': lambda coords: objective(coords, mol),
+          'x0': mol.mineToListXYZ(),
+          'method': 'TNC',
+          'tol': 1e-2,
+          'options': {'maxiter': 1000, 'disp': True}
+      }
+
+  if kwargs['method'] in ['CG', 'BFGS', 'L-BFGS-B', 'TNC', 'SLSQP']:
+          kwargs['jac'] = '2-point'
+
+  result = minimize(**kwargs)
+
+  #print(result.x)
+
+  mol.listToMineXYZ(result.x)
+  
+  mol.saveMol()
+  print(mol.scoreFull())
+
+
+def genetic(mol):
+  print("start")
+  
+  
+
+  kwargs = {
+        'func': lambda coords: objective(coords, mol),
+        'bounds': [(-2.0,2.0) for i in range(len(mol.mineToListXYZ()))],
+        'args': (),
+        'strategy': 'best1bin',
+        'maxiter': 1000,
+        'popsize': 15,
+        'tol': 1e-3,
+        'mutation': 0.5,
+        'recombination': 0.7,
+        'seed': None,
+        'disp': True,
+        'workers': 2,
+        #'vectorized':True,
+        'updating': 'deferred'
+    }
+
+  
+  result = differential_evolution(**kwargs)
+
+  mol.listToMineXYZ(result.x)
+
+  mol.saveMol()
+  print(mol.scoreFull())
+
+
+
+def basinhop(mol):
+  print("starting basinhopping algorithm")
+  
+  kwargs = {
+          'func': lambda coords: objective(coords, mol),
+          'x0': mol.mineToListXYZ(),
+          'T': 20.0,
+          'niter_success':5,
+          'disp':True
+      }
+  
+  result = basinhopping(**kwargs)
+
+  mol.listToMineXYZ(result.x)
+
+  mol.saveMol()
+  print(mol.scoreFull())
