@@ -1,5 +1,5 @@
 import numpy as np
-import random, math, os, json
+import random, math, os, json, time
 
 from openmm.app import *
 from openmm import *
@@ -243,8 +243,9 @@ class molocule():
   lastScore: float
   fromFile: str
   
-  def molToMine(self, mol: str, file: str = ""):
+  def molToMine(self, file: str):
     self.fromFile = file
+    mol = open(file).read()
     atomList = []
     bondList = []
 
@@ -612,8 +613,11 @@ class molocule():
     return score
 
   
-  def saveMol(self, path: str = "savedFiles", fileType: str = "mol", other: list[list] = []):
-    name = str(len(os.listdir(path))) + "." + fileType
+  def saveMol(self, filename: str = "", path: str = "savedFiles", fileType: str = "mol", other: list[list] = []):
+    if filename == "":
+      name = str(int(round(time.time(),3)*1000 % 100000)) + "." + fileType
+    else:
+      name = filename
     writer = ""
     if fileType == "mol":
       writer = self.vectorToMol()
@@ -621,6 +625,8 @@ class molocule():
       writer = self.vectorToInp(name[:-4])
     elif fileType == "pdb":
       writer = self.vectorToPDB()
+    if (os.path.exists(path + "/" + name)):
+      name = name + "DupeSomehow" #should not happen
     with open(path + "/" + name, 'w') as g:
       g.write(writer)
     data = ""

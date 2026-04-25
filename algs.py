@@ -10,18 +10,22 @@ class Algorithm():
     alg: str
     result: float
     runTime: float
-    def __init__(self, mol: molocule, alg: str = "minimize"):
+    name: str
+    params: list[list]
+    def __init__(self, mol: molocule, alg: str = "minimize", other: list[list] = [], name: str = ""):
         print("Initializing algorithm " + alg)
+        self.params = other
         self.kwargs = {}
         self.mol = mol
         self.alg = alg
+        self.name = name
         if self.alg == "minimize":
             self.kwargs = {
                 'fun': lambda coords: objective(coords, self.mol),
                 'x0': self.mol.mineToListXYZ(),
-                'method': 'TNC',
+                'method': 'L-BFGS-B',
                 'tol': 1e-2,
-                'options': {'maxiter': 1000, 'disp': True}
+                'options': {'maxiter': 1000, 'disp': False}
             }
             if self.kwargs['method'] in ['CG', 'BFGS', 'L-BFGS-B', 'TNC', 'SLSQP']:
                 self.kwargs['jac'] = '2-point'
@@ -32,7 +36,7 @@ class Algorithm():
                   'x0': self.mol.mineToListXYZ(),
                   'T': 20.0,
                   'niter_success':5,
-                  'disp':True
+                  'disp':False
               }
         
         elif self.alg == "differential_evolution":
@@ -47,13 +51,16 @@ class Algorithm():
                 'mutation': 0.5,
                 'recombination': 0.7,
                 'seed': None,
-                'disp': True,
+                'disp': False,
                 'workers': 4,
                 'updating': 'deferred'
             }
+        for i in other:
+            self.kwargs[i[0]] = i[1]
     
     def run(self):
         t1 = time.time() 
+        print("running " + self.name)
         if self.alg == "minimize":
             self.mol.listToMineXYZ(minimize(**self.kwargs).x)
         elif self.alg == "basinhopping":
@@ -64,9 +71,11 @@ class Algorithm():
         self.runTime = time.time()-t1
 
     def save(self):
-        self.mol.saveMol(other = [["algorithm",self.alg],["runTime",self.runTime]])
+        builder = [["algorithm",self.alg],["runTime",self.runTime]]
+        builder += self.params
+        self.mol.saveMol(other = builder, filename=self.name)
     
-    def str(self) -> str:
+    def __str__(self) -> str:
         builder = self.alg[0].upper() + self.alg[1:] + " algorithm.\n"
         if self.result:
             builder += "Result: " + str(self.result)
