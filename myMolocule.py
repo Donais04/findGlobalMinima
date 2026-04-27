@@ -554,7 +554,7 @@ class molocule():
     minAngle: float = np.pi / 8.0,
     minLengthMult: float = 0.6,
     maxLengthMult: float = 1.6,
-    minDistanceMult: float = 0.7) -> list[float]:
+    minDistanceMult: float = 0.8) -> list[float]:
     
     score: list[float] = [0.0, 0.0, 0.0, 0.0]
     atoms = self.atoms

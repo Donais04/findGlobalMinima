@@ -9,6 +9,7 @@ _FILE_TO_READ = "lessNAD+.mol"
 
 #minimize recombination [1,2,3] mutation [1,2,3]
 #[[['recombination', 1], ['mutation', 1]],[['recombination', 1], ['mutation', 2]]]
+noWrite = False
 algs = []
 if __name__ == "__main__":
     alg = str(sys.argv[1])
@@ -16,6 +17,7 @@ if __name__ == "__main__":
     wish = []
     repeat = 1
     batch = ""
+    stage = 2
     for i in sys.argv[2:]:
       if i[0] == "-":
         kiss.append([])
@@ -36,6 +38,17 @@ if __name__ == "__main__":
         _FILE_TO_READ = kiss.pop(i)[0]
         wish.pop(i)
         i += -1
+      elif wish[i] == 'nw':
+        noWrite = True
+        kiss.pop(i)
+        wish.pop(i)
+        i += -1
+      elif wish[i] == 'stage':
+        stage = int(kiss.pop(i)[0])
+        wish.pop(i)
+        i += -1
+      elif wish[i] == 'disp':
+        kiss[i] = [len(kiss[i]) == 0 or kiss[i][0].lower()[0] == "t"]
       i += 1
     print("Simulating all combinations between " + str(kiss) + ("" if repeat == 1 else (" " + str(repeat) + " times")))
     miss = list(itertools.product(*kiss))
@@ -59,12 +72,13 @@ if __name__ == "__main__":
         myMol = molocule()
         myMol.molToMine(_FILE_TO_READ)
         myMol.rando()
-        algs.append(Algorithm(myMol, alg, i, id = count))
+        algs.append(Algorithm(myMol, alg, i, id = count, b=batch, stage=stage))
 
 def f(alg:Algorithm) -> int:
     #print("here")
     alg.run()
-    alg.save()
+    if not(noWrite):
+      alg.save()
     print(i)
     return 0
   
