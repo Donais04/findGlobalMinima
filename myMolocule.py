@@ -32,6 +32,7 @@ class bond():
     return [self.atomFrom.index,self.atomTo.index]
   
   def getAngleTo(self, other) -> float:
+    raise Exception("shouldn't be here")
     v1 = np.array(self.vector) #AI written
     v2 = np.array(other.vector)
     dot_product = np.dot(v1, v2)
@@ -44,7 +45,8 @@ class bond():
     self.changeBondLength(angstrom - self.getMagnitude())
   
   def changeBondLength(self, dAngstrom: float):
-    multiplier = (dAngstrom + self.getMagnitude()) / dAngstrom
+    mag = self.getMagnitude()
+    multiplier = (dAngstrom + mag) / mag
     for i in range(3):
       self.vector[i] = self.vector[i] * multiplier
     self.atomFrom.startRegen()

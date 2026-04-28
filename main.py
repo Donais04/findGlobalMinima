@@ -18,6 +18,7 @@ if __name__ == "__main__":
     repeat = 1
     batch = ""
     stage = 2
+    XYZ = True
     for i in sys.argv[2:]:
       if i[0] == "-":
         kiss.append([])
@@ -25,6 +26,7 @@ if __name__ == "__main__":
       else:
         kiss[-1].append(i)
     i = 0
+    print(kiss)
     while i < len(wish):
       if wish[i] == 'r':
         repeat = int(kiss.pop(i)[0])
@@ -45,6 +47,16 @@ if __name__ == "__main__":
         i += -1
       elif wish[i] == 'stage':
         stage = int(kiss.pop(i)[0])
+        wish.pop(i)
+        i += -1
+      elif wish[i] == 'type':
+        if kiss[i][0].lower() == "xyz":
+          XYZ = True
+        elif kiss[i][0].lower() == "pym":
+          XYZ = False
+        else:
+          raise KeyError("type must be xyz or pym")
+        kiss.pop(i)
         wish.pop(i)
         i += -1
       elif wish[i] == 'disp':
@@ -72,7 +84,7 @@ if __name__ == "__main__":
         myMol = molocule()
         myMol.molToMine(_FILE_TO_READ)
         myMol.rando()
-        algs.append(Algorithm(myMol, alg, i, id = count, b=batch, stage=stage))
+        algs.append(Algorithm(myMol, alg, i, id = count, b=batch, stage=stage, useXYZ=XYZ))
 
 def f(alg:Algorithm) -> int:
     #print("here")
