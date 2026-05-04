@@ -13,39 +13,44 @@ class Algorithm():
     params: list[list]
     id: int
     stage: int
-    XYZ: bool
-    def __init__(self, mol: molocule, alg: str = "minimize", other: list[list] = [], name: str = "", id: int = -1, b: str = "", stage: int = 2, useXYZ: bool = True):
+    listType: str
+    def __init__(self, mol: molocule, alg: str = "minimize", other: list[list] = [], 
+                 name: str = "", id: int = -1, b: str = "", stage: int = 2, listType: str = "XYZ", rand: bool = True):
         if stage == 2:
             print("Initializing algorithm " + alg + " with id " + str(id) + " with params " + str(other))
-        self.XYZ = useXYZ
+        self.listType = listType
         self.stage = stage
         self.params = other
         self.kwargs = {}
         self.mol = mol
         self.alg = alg
         self.name = name
-        if useXYZ:
+        bounds = []
+        if listType == "XYZ":
             self.listInFunc = self.mol.listToMineXYZ
             self.listOutFunc = self.mol.mineToListXYZ
-        else:
+            x0 = self.listOutFunc()
+            bounds = [(-2.0, 2.0) for _ in range(len(x0))]
+        elif listType == "PYM":
             self.listInFunc = self.mol.listToMine
             self.listOutFunc = self.mol.mineToList
-        x0 = self.listOutFunc()
+            x0 = self.listOutFunc()
+            for i in range(len(x0)):
+                if (i+1) % 3 == 0:
+                    bounds.append((0.5,2.0))
+                else:
+                    bounds.append((-1*2*np.pi,2*np.pi))
+        elif listType == "FF":
+            self.listInFunc = self.mol.zMatrixToMine
+            self.listOutFunc = self.mol.mineToZMatrix
+            x0 = self.listOutFunc()
+            bounds = self.mol.zmatBounds()
         if not(b==""):
             self.batch = b
         else:
             self.batch = None
         if (id > 0):
             self.id = id
-        bounds = []
-        if self.XYZ:
-            bounds = [(-2.0, 2.0) for _ in range(len(self.listOutFunc()))]
-        else:
-            for i in range(len(x0)):
-                if (i+1) % 3 == 0:
-                    bounds.append((0.5,2.0))
-                else:
-                    bounds.append((-1*2*np.pi,2*np.pi))
         if self.alg == "minimize":
             self.kwargs = {
                 'fun': ObjectiveFunction(self.mol, self.listInFunc),
@@ -69,7 +74,7 @@ class Algorithm():
         elif self.alg == "differential_evolution":
             self.kwargs = {
                 'func': ObjectiveFunction(self.mol, self.listInFunc),
-                'bounds': bounds,#[(-2.0,2.0) for i in range(len(x0))],
+                'bounds': bounds,
                 'x0': x0,
                 'strategy': 'best1bin',
                 'maxiter': 1000,
@@ -85,7 +90,7 @@ class Algorithm():
         elif self.alg == "dual_annealing":
             self.kwargs = {
                 'func': ObjectiveFunction(self.mol, self.listInFunc),
-                #'bounds': [(-2.0,2.0) for i in range(len(x0))],
+                'bounds': bounds,
                 'x0': x0,
                 'args': ()#,
                 #'callback': callAn
@@ -94,21 +99,21 @@ class Algorithm():
         elif self.alg == "random_restart":
             self.kwargs = {
                 'func': ObjectiveFunction(self.mol, self.listInFunc),
-                #'bounds': [(-2.0,2.0) for i in range(len(x0))],
+                'bounds': bounds,
                 'x0': x0,
                 'iter': 20,
                 'mini_iter': 100,
                 'miniargs': {'method': 'L-BFGS-B',
                              'jac':'2-point','options': {}},
                 'mol':self.mol,
-                'XYZ':self.XYZ,
+                'listFunc':self.listType,
                 'disp': False
             }
         
         elif self.alg == "brute_force":
             self.kwargs = {
                 'func': ObjectiveFunction(self.mol, self.listInFunc),
-                #'bounds': [(-2.0,2.0) for _ in range(len(x0))],
+                'bounds': bounds,
                 'x0': x0,
                 'iter': 1000
             }
@@ -127,20 +132,30 @@ class Algorithm():
         if self.stage == 2:
             print("init " + str(self.mol.scoreFull()))
             print("running " + str(self.id))
-            newAlg = Algorithm(self.mol,stage=1)
+            newAlg = Algorithm(self.mol,stage=1,listType="XYZ")
             newAlg.run()
-            self.mol.listToMine(newAlg.mol.mineToList())
-            print("starting from " + str(self.mol.scoreFull()))
+            self.mol.listToMineXYZ(newAlg.mol.mineToListXYZ())
+            self.kwargs['x0'] = self.listOutFunc()
             if 'func' in self.kwargs.keys():
-                self.kwargs['func'] = ObjectiveFunction(self.mol, self.listInFunc)
+                print("starting from " + str(self.kwargs['func'](self.kwargs['x0'])))
             else:
-                self.kwargs['fun'] = ObjectiveFunction(self.mol, self.listInFunc)
-        t1 = time.time() 
+                print("starting from " + str(self.kwargs['fun'](self.kwargs['x0'])))
+        #print(self.kwargs['x0'])
+        if 'bounds' in self.kwargs.keys():
+            for i in range(len(self.kwargs['x0'])):
+                if self.kwargs['x0'][i] < self.kwargs['bounds'][i][0]:
+                    self.kwargs['x0'][i] = self.kwargs['bounds'][i][0] + 0.01
+                elif self.kwargs['x0'][i] > self.kwargs['bounds'][i][1]:
+                    self.kwargs['x0'][i] = self.kwargs['bounds'][i][1] - 0.01
+        
+        self.listInFunc(self.kwargs['x0'])
+        t1 = time.time()
         if self.alg == "minimize":
             list = minimize(**self.kwargs).x
         elif self.alg == "basinhopping":
             list = basinhopping(**self.kwargs).x
         elif self.alg == "differential_evolution":
+            print(len(self.kwargs['x0']), len(self.kwargs['bounds']))
             list = differential_evolution(**self.kwargs).x
         elif self.alg == "dual_annealing":
             list = dual_annealing(**self.kwargs).x
@@ -196,13 +211,9 @@ class Stage1ObjectiveFunction:
     def update(self,mol:molocule):
         self.mol = mol
     
-    def __call__(self, coords: np.ndarray, scoreReqs: dict = {'minDistanceMult':1.2}) -> float:
+    def __call__(self, coords: np.ndarray, scoreReqs: dict = {'minDistanceMult':1.2,'minAngle':np.pi/4}) -> float:
         self.listFunc(list(coords))
         return sum(self.mol.scoreValidity(**scoreReqs))
-    
-def objective(coords, mol: molocule):
-    mol.listToMine(coords)
-    return mol.scoreFull()
 
 class ObjectiveFunction:
     def __init__(self, mol: molocule, listfunc):
@@ -217,13 +228,17 @@ class ObjectiveFunction:
         return self.mol.scoreFull()
 
 def random_restart(mol: molocule, func, x0, miniargs, callback = None, bounds: list[tuple[float,float]] = [], 
-                   iter: int = 200, mini_iter: int = 0, mini_tol: float = -1, disp: bool = False, XYZ: bool = True) -> list[float]:
-    if XYZ:
+                   iter: int = 200, mini_iter: int = 0, mini_tol: float = -1, disp: bool = False, listFunc: str = "XYZ") -> list[float]:
+    if listFunc == "XYZ":
         funcIn = mol.listToMineXYZ
         funcOut = mol.mineToListXYZ
-    else:
+    elif listFunc == "PYM":
         funcIn = mol.listToMine
         funcOut = mol.mineToList
+    elif listFunc == "FF":
+        funcIn = mol.zMatrixToMine
+        funcOut = mol.mineToZMatrix
+        
     if bounds == []:
         for _ in x0:
             bounds.append((-10000.0,10000.0))
@@ -234,7 +249,8 @@ def random_restart(mol: molocule, func, x0, miniargs, callback = None, bounds: l
         miniargs['tol'] = mini_tol
     for _ in range(iter):
         miniargs['x0'] = x0
-        print("starting", func(x0))
+        #print("starting", func(x0))
+        #print(x0)
         #func.update(mol)
         miniargs['fun'] = func
         funcIn(minimize(**miniargs).x)
@@ -244,17 +260,17 @@ def random_restart(mol: molocule, func, x0, miniargs, callback = None, bounds: l
             bestScore = score
             bestList = funcOut()
             updated = True
-        if disp:
-            dispRandRest(x0, score, updated)
         if callback:
             if callback(x0,score,updated):
                 return bestList
         for i in range(len(x0)):
             x0[i] = (random.random() * (bounds[i][1]-bounds[i][0])) + bounds[i][0]
-        #newAlg = Algorithm(mol,stage=1)
-        #newAlg.run()
-        #mol.listToMine(newAlg.mol.mineToList())
-        #print("starting from " + str(mol.scoreFull()))
+        funcIn(x0)
+        newAlg = Algorithm(mol,stage=1)
+        newAlg.run()
+        if disp:
+            dispRandRest(x0, score, updated)
+            print("starting from " + str(mol.scoreFull()))
     return bestList
 
 
@@ -279,3 +295,15 @@ def brute_force(func, x0, bounds: list[tuple[float,float]], callback = None, ite
             if callback(x0,score,updated):
                 return bestList
     return bestList
+
+
+
+
+
+
+
+
+
+
+
+

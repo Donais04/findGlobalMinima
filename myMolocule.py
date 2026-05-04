@@ -6,9 +6,10 @@ from openmm import *
 from openmm.unit import *
 import numpy as np
 from rdkit import Chem
-from openmmforcefields.generators import GAFFTemplateGenerator
+#from openmmforcefields.generators import GAFFTemplateGenerator
 from rdkit.Chem import rdForceFieldHelpers
-
+from r2z import *
+from r2z.zmatrix import ZMatrix, pts_to_bond, pts_to_angle, pts_to_dihedral
 
 class bond():
   bondType: int
@@ -32,7 +33,7 @@ class bond():
     return [self.atomFrom.index,self.atomTo.index]
   
   def getAngleTo(self, other) -> float:
-    raise Exception("shouldn't be here")
+    #raise Exception("shouldn't be here")
     v1 = np.array(self.vector) #AI written
     v2 = np.array(other.vector)
     dot_product = np.dot(v1, v2)
@@ -229,6 +230,9 @@ class atom():
           return False
       return True
     
+    def XYZAsVector(self) -> list[float]:
+      return ([self.x, self.y, self.z])
+    
     def __str__(self):
       returner: str = "atom " + str(self.index) + " at (" + str(self.x) + ", " + str(self.y) + ", " + str(self.z) + "). Bonds incoming from "
       for i in self.into:
@@ -265,8 +269,9 @@ class molocule():
       trueBondList += i.out
     self.bonds = trueBondList
     self.atoms = atomList
+    self.zm = ZMatrix(self.toRDKitMol())
 
-  def vectorToMol(self) -> str:
+  def mineToMol(self) -> str:
     returnBuilder: list[str] = ["","  WebMO",""]
     atomNum = 0
     bondNum = 0
@@ -466,6 +471,8 @@ class molocule():
     return rdkMol
 
 
+  
+
 
 
 
@@ -622,7 +629,7 @@ class molocule():
       name = filename
     writer = ""
     if fileType == "mol":
-      writer = self.vectorToMol()
+      writer = self.mineToMol()
     elif fileType == "xyz":
       writer = self.vectorToInp(name[:-4])
     elif fileType == "pdb":
@@ -650,10 +657,282 @@ class molocule():
   
   def __str__(self):
     return "molocule containing " + str(len(self.atoms)) + " atoms and " + str(len(self.bonds)) + " bonds."
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  def mineToZMatrix(self):
+    
+    
+    returner = []
+    big = self.zm.build_z_crds(np.array(self.toRDKitMol().GetConformers()[0].GetPositions())*ureg.angstrom)
+    print(list(big.values()))
+    for i in range(len(big.values())):
+      if not (len(str(list(big.values())[i][0]).split(" ")) > 3):
+        for j in range(len(list(big.values())[i])):
+          temp = str(list(big.values())[i][j]).split(" ")
+          value = float(temp[0])
+          if temp[1] == "nanometer":
+            value = value * 10
+          elif temp[1] == "degree":
+            value = float(np.deg2rad(value))
+          returner.append(value)
+          big[i][j] = value
+    big[0][0] = [0.0,0.0,0.0]
+    print(big, "\n\n")
+    print("hereeee", self.zm.z)
+    with open("output.json", 'w') as f:
+      f.write(json.dumps(big))
+    
+      
+    return returner
+    
+  def zMatrixToMine(self, zmat):
+
+    def getBond(a: int, b: int) -> bond:
+      for j in range(len(self.bonds)):
+        i = self.bonds[j]
+        if ((i.atomTo.index == a and i.atomFrom.index == b) or
+            (i.atomTo.index == b and i.atomFrom.index == a)):
+          return i
+      else:
+        raise ValueError("bond not found")
+      
+    for i in range(len(self.zm.z)):
+
+        if i == 0:
+            atom.x, atom.y, atom.z = 0.0, 0.0, 0.0
+
+        elif i == 1:
+            b = getBond(self.zm.z[i][0],self.zm.z[i][1])
+            b.setBondLength(zmat[1])
+
+        elif i == 2:
+            b1 = getBond(self.zm.z[i][0],self.zm.z[i][1])
+            b1.setBondLength(zmat[2])
+            b2 = getBond(self.zm.z[i][2],self.zm.z[i][1])
+            
+            self.rotateBondAroundOther(self.zm.z[i][0], b1, b2, zmat[3] - b2.getAngleTo(b1))
+
+        else:
+            zind = (i-1)*3
+            b1 = getBond(self.zm.z[i][0],self.zm.z[i][1])
+            b1.setBondLength(zmat[zind])
+            b2 = getBond(self.zm.z[i][2],self.zm.z[i][1])
+            
+            self.rotateBondAroundOther(self.zm.z[i][0], b1, b2, zmat[zind+1] - b2.getAngleTo(b1))
+            
+            self.setDihedralAngle(self.atoms[self.zm.z[i][0]],
+                                  self.atoms[self.zm.z[i][1]],
+                                  self.atoms[self.zm.z[i][2]],
+                                  self.atoms[self.zm.z[i][3]],
+                                  zmat[zind+2])
+          
+    #self.atoms[0].startRegen()
+    
+  def zmatBounds(self) -> list[tuple[float, float]]:
+    bounds = []
+    
+    # Use the same BFS order as mineToZMatrix
+    visited = set()
+    order = []
+    queue = [self.atoms[0]]
+    visited.add(self.atoms[0].index)
+
+    while queue:
+        a = queue.pop(0)
+        order.append(a)
+        neighbors = [b.atomTo for b in a.out] + [b.atomFrom for b in a.into]
+        for n in neighbors:
+            if n.index not in visited:
+                visited.add(n.index)
+                queue.append(n)
+
+    # Helper: find bond between two atoms
+    def find_bond(a, b):
+        for bond in self.bonds:
+            if (bond.atomFrom == a and bond.atomTo == b) or \
+               (bond.atomFrom == b and bond.atomTo == a):
+                return bond
+        return None
+
+    for i, atom in enumerate(order):
+        if i == 0:
+            continue  # No parameters
+        
+        elif i == 1:
+            # r: distance from atom to order[0]
+            b = find_bond(atom, order[0])
+            if b:
+                ideal = b.getAimMag()
+                bounds.append((0.6 * ideal, 1.6 * ideal))
+            else:
+                bounds.append((0.5, 3.0))
+
+        elif i == 2:
+            # r: distance from atom to order[1]
+            b = find_bond(atom, order[1])
+            if b:
+                ideal = b.getAimMag()
+                bounds.append((0.6 * ideal, 1.6 * ideal))
+            else:
+                bounds.append((0.5, 3.0))
+            # θ: angle at order[1] with order[0]
+            try:
+                parentBond = bond(atom, order[1], 1)
+                grandparentBond = bond(order[1], order[0], 1)
+                angle = parentBond.getAngleTo(grandparentBond)
+                bounds.append((max(0.1, angle - np.pi/3), min(np.pi - 0.1, angle + np.pi/3)))
+            except:
+                bounds.append((0.1, np.pi - 0.1))
+
+        else:
+            parent = order[i - 1]
+            grandparent = order[i - 2]
+            greatGrandparent = order[i - 3]
+            
+            # r: distance from atom to parent
+            b = find_bond(atom, parent)
+            if b:
+                ideal = b.getAimMag()
+                bounds.append((0.6 * ideal, 1.6 * ideal))
+            else:
+                bounds.append((0.5, 3.0))
+            
+            # θ: angle at parent with grandparent
+            try:
+                parentBond = bond(atom, parent, 1)
+                grandparentBond = bond(parent, grandparent, 1)
+                angle = parentBond.getAngleTo(grandparentBond)
+                bounds.append((max(0.1, angle - np.pi/3), min(np.pi - 0.1, angle + np.pi/3)))
+            except:
+                bounds.append((0.1, np.pi - 0.1))
+            
+            # φ: dihedral defined by greatGrandparent-grandparent-parent-atom
+            try:
+                dihed = compute_dihedral(
+                    [greatGrandparent.x, greatGrandparent.y, greatGrandparent.z],
+                    [grandparent.x, grandparent.y, grandparent.z],
+                    [parent.x, parent.y, parent.z],
+                    [atom.x, atom.y, atom.z]
+                )
+                bounds.append((dihed - np.pi, dihed + np.pi))
+            except:
+                bounds.append((-np.pi, np.pi))
+
+    return bounds
+  
+  
+  def setDihedralAngle(self, a: atom, b: atom, c: atom, d: atom, target_angle: float) -> None:
+    """Set the dihedral angle for atoms a-b-c-d by rotating atom d around bond b-c."""
+    current_angle = calculateDihedral(a, b, c, d)
+    angle_diff = target_angle - current_angle
+    
+    b_pos = np.array([b.x, b.y, b.z])
+    c_pos = np.array([c.x, c.y, c.z])
+    d_pos = np.array([d.x, d.y, d.z])
+    
+    axis = c_pos - b_pos
+    axis_norm = axis / np.linalg.norm(axis)
+    
+    parallel = np.dot(d_pos - b_pos, axis_norm) * axis_norm
+    perp = d_pos - b_pos - parallel
+    
+    if np.linalg.norm(perp) < 1e-10:
+        return
+    
+    perp_axis = np.cross(axis_norm, perp / np.linalg.norm(perp))
+    
+    cos_a = np.cos(angle_diff)
+    sin_a = np.sin(angle_diff)
+    K = np.array([[0, -perp_axis[2], perp_axis[1]],
+                  [perp_axis[2], 0, -perp_axis[0]],
+                  [-perp_axis[1], perp_axis[0], 0]])
+    R = np.eye(3) + sin_a * K + (1 - cos_a) * (K @ K)
+    
+    new_perp = R @ perp
+    new_d_pos = b_pos + parallel + new_perp
+    
+    d.x, d.y, d.z = new_d_pos.tolist()
+    
+    #since vectors are truth source.
+    for b1 in self.bonds:
+        dx = b1.atomTo.x - b1.atomFrom.x
+        dy = b1.atomTo.y - b1.atomFrom.y
+        dz = b1.atomTo.z - b1.atomFrom.z
+
+        b1.vector[0] = dx
+        b1.vector[1] = dy
+        b1.vector[2] = dz
+    #d.startRegen()
+  
+  def rotateBondAroundOther(self, center_atom: atom, reference_bond: bond, 
+                           target_bond: bond, angle_diff: float) -> None:
+    """Rotate target_bond around center_atom by angle_diff radians."""
+    ref_vec = np.array(reference_bond.vector)
+    ref_norm = ref_vec / np.linalg.norm(ref_vec)
+    
+    target_vec = np.array(target_bond.vector)
+    parallel = np.dot(target_vec, ref_norm) * ref_norm
+    perp = target_vec - parallel
+    
+    if np.linalg.norm(perp) < 1e-10:
+        return
+    
+    perp_norm = perp / np.linalg.norm(perp)
+    rot_axis = np.cross(ref_norm, perp_norm)
+    
+    if np.linalg.norm(rot_axis) < 1e-10:
+        return
+    rot_axis = rot_axis / np.linalg.norm(rot_axis)
+    
+    cos_a = np.cos(angle_diff)
+    sin_a = np.sin(angle_diff)
+    K = np.array([[0, -rot_axis[2], rot_axis[1]],
+                 [rot_axis[2], 0, -rot_axis[0]],
+                 [-rot_axis[1], rot_axis[0], 0]])
+    R = np.eye(3) + sin_a * K + (1 - cos_a) * (K @ K)
+    
+    new_perp = R @ perp
+    new_vec = parallel + new_perp
+    
+    target_bond.vector = new_vec.tolist()
+    target_bond.atomTo.startRegen()
 
 
 
 
+
+def calculateDihedral(a: atom, b: atom, c: atom, d: atom) -> float:
+    """Calculate dihedral angle (in radians) between four atoms a-b-c-d."""
+    v1 = np.array([a.x - b.x, a.y - b.y, a.z - b.z])
+    v2 = np.array([b.x - c.x, b.y - c.y, b.z - c.z])
+    v3 = np.array([c.x - d.x, c.y - d.y, c.z - d.z])
+    
+    n1 = np.cross(v1, v2)
+    n2 = np.cross(v2, v3)
+    
+    dot = np.dot(n1, n2)
+    norm = np.linalg.norm(n1) * np.linalg.norm(n2)
+    
+    if norm < 1e-10:
+        return 0.0
+    
+    return np.arctan2(np.dot(np.cross(n1, n2), v2), dot)
 
 def rotate_vector_quaternion(vector, axis, angle: float): #AI written
   #AXIS: first index is roll, second is pitch, third is yaw
@@ -678,3 +957,62 @@ def rotate_vector_quaternion(vector, axis, angle: float): #AI written
         ])
     result = quat_mult(quat_mult(q, v_q), q_conj)
     return result[1:]  # Return vector part
+
+
+
+  
+  
+
+
+
+
+
+
+
+
+
+def compute_angle(v1, v2):
+    v1 = np.array(v1)
+    v2 = np.array(v2)
+    cosang = np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2))
+    return np.arccos(np.clip(cosang, -1.0, 1.0))
+
+
+def compute_dihedral(p0, p1, p2, p3):
+    p0 = np.array(p0)
+    p1 = np.array(p1)
+    p2 = np.array(p2)
+    p3 = np.array(p3)
+
+    b0 = -1.0 * (p1 - p0)
+    b1 = p2 - p1
+    b2 = p3 - p2
+
+    b1 /= np.linalg.norm(b1)
+
+    v = b0 - np.dot(b0, b1) * b1
+    w = b2 - np.dot(b2, b1) * b1
+
+    x = np.dot(v, w)
+    y = np.dot(np.cross(b1, v), w)
+
+    return np.arctan2(y, x)
+def distance(a, b):
+    return np.linalg.norm([a.x - b.x, a.y - b.y, a.z - b.z])
+
+
+def angle(a, b, c):
+    v1 = np.array([a.x - b.x, a.y - b.y, a.z - b.z])
+    v2 = np.array([c.x - b.x, c.y - b.y, c.z - b.z])
+    return compute_angle(v1, v2)
+
+
+def dihedral(a, b, c, d):
+    return compute_dihedral(
+        [a.x, a.y, a.z],
+        [b.x, b.y, b.z],
+        [c.x, c.y, c.z],
+        [d.x, d.y, d.z]
+    )
+
+
