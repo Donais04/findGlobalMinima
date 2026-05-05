@@ -654,22 +654,6 @@ class molocule():
     return "molocule containing " + str(len(self.atoms)) + " atoms and " + str(len(self.bonds)) + " bonds."
   
   
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
   def mineToZMatrix(self):
     
     
@@ -706,10 +690,10 @@ class molocule():
       raise ValueError("bond not found")
     
   def zMatrixToMine(self, zmat):
-    print(self.zm.z)
+    #print(self.zm.z)
 
     
-    print("zmat",zmat)
+    #print("zmat",zmat)
       
     for i in range(len(self.zm.z)):
 
@@ -726,25 +710,27 @@ class molocule():
             #print(self.getBond(3,2).getMagnitude(), self.zm.z[i], 0)
             b1 = self.getBond(self.zm.z[i][0],self.zm.z[i][1])
             b2 = self.getBond(self.zm.z[i][2],self.zm.z[i][1])
-            currAngle = angle33DPoints(self.atoms[self.zm.z[i][0]].XYZAsVector(),
-                                        self.atoms[self.zm.z[i][1]].XYZAsVector(),
-                                        self.atoms[self.zm.z[i][2]].XYZAsVector())
+            #currAngle = angle33DPoints(self.atoms[self.zm.z[i][0]].XYZAsVector(),
+            #                            self.atoms[self.zm.z[i][1]].XYZAsVector(),
+            #                            self.atoms[self.zm.z[i][2]].XYZAsVector())
             b1.setBondLength(zmat[1])
-            self.rotateBondAroundOther(self.zm.z[i][0], b2, b1, zmat[2] - currAngle)
+            self.setAngle(self.atoms[self.zm.z[i][2]],self.atoms[self.zm.z[i][1]],self.atoms[self.zm.z[i][0]],zmat[2])
+            #self.rotateBondAroundOther(self.zm.z[i][0], b2, b1, zmat[2] - currAngle)
             #print(self.getBond(3,2).getMagnitude(), self.zm.z[i], 2)
 
         else:
             zind = (i-2)*3
             b1 = self.getBond(self.zm.z[i][0],self.zm.z[i][1])
             b2 = self.getBond(self.zm.z[i][2],self.zm.z[i][1])
-            currAngle = angle33DPoints(self.atoms[self.zm.z[i][0]].XYZAsVector(),
-                                        self.atoms[self.zm.z[i][1]].XYZAsVector(),
-                                        self.atoms[self.zm.z[i][2]].XYZAsVector())
-            #print(zind, self.getBond(3,2).getMagnitude(), self.zm.z[i], 0)
+            #currAngle = angle33DPoints(self.atoms[self.zm.z[i][0]].XYZAsVector(),
+            #                            self.atoms[self.zm.z[i][1]].XYZAsVector(),
+            #                            self.atoms[self.zm.z[i][2]].XYZAsVector())
+            #print(zind, self.getBond(30,13).getMagnitude(), self.zm.z[i], 0)
             b1.setBondLength(zmat[zind])
-            #print(zind, self.getBond(3,2).getMagnitude(), self.zm.z[i], 1)
-            self.rotateBondAroundOther(self.zm.z[i][0], b2, b1, zmat[zind+1] - currAngle)
-            #print(zind, self.getBond(3,2).getMagnitude(), self.zm.z[i], 2)
+            #print(zind, self.getBond(30,13).getMagnitude(), self.zm.z[i], 1)
+            self.setAngle(self.atoms[self.zm.z[i][2]],self.atoms[self.zm.z[i][1]],self.atoms[self.zm.z[i][0]],zmat[zind+1])
+            #self.rotateBondAroundOther(self.zm.z[i][0], b2, b1, zmat[zind+1] - currAngle)
+            #print(zind, self.getBond(30,13).getMagnitude(), self.zm.z[i], 2)
             
             self.setDihedralAngle(self.atoms[self.zm.z[i][3]],
                                   self.atoms[self.zm.z[i][2]],
@@ -847,51 +833,70 @@ class molocule():
 
     return bounds
   
-  
-  def setDihedralAngle(self, a: atom, b: atom, c: atom, d: atom, target_angle: float) -> None:
-    """Set the dihedral angle for atoms a-b-c-d by rotating atom d around bond b-c."""
-    current_angle = calculateDihedral(a, b, c, d)
-    angle_diff = target_angle - current_angle
+  def setAngle(self, aIn: atom, bIn: atom, cIn: atom, target_angle: float) -> None: #AI
+    a = np.array(aIn.XYZAsVector(), dtype=float)
+    b = np.array(bIn.XYZAsVector(), dtype=float)
+    c = np.array(cIn.XYZAsVector(), dtype=float)
+    ba = a - b
+    bc = c - b
+
+    # Normalize
+    ba_unit = ba / np.linalg.norm(ba)
+    bc_unit = bc / np.linalg.norm(bc)
+
+    # Current angle
+    current_angle = angle33DPoints(a,b,c)
+
+    # Rotation needed
+    delta_angle = target_angle - current_angle
+
+    # Rotation axis (normal to plane)
+    axis = np.cross(ba_unit, bc_unit)
+    axis_norm = np.linalg.norm(axis)
+
+    if axis_norm < 1e-8:
+        raise ValueError("Points are colinear; rotation axis is undefined.")
+
+    axis = axis / axis_norm
+
+    # Rodrigues' rotation formula
+    def rodrigues(v, k, theta):
+        return (v * np.cos(theta) +
+                np.cross(k, v) * np.sin(theta) +
+                k * np.dot(k, v) * (1 - np.cos(theta)))
+
+    # Rotate bc
+    bc_rot = rodrigues(bc, axis, delta_angle)
+
+    # Translate back
+    c1 = b + bc_rot
+    self.getBond(bIn.index,cIn.index).vector = [c1[0]-bIn.x,c1[1]-bIn.y,c1[2]-bIn.z]
+    bIn.startRegen()
     
-    b_pos = np.array([b.x, b.y, b.z])
-    c_pos = np.array([c.x, c.y, c.z])
-    d_pos = np.array([d.x, d.y, d.z])
-    
-    axis = c_pos - b_pos
-    axis_norm = axis / np.linalg.norm(axis)
-    
-    parallel = np.dot(d_pos - b_pos, axis_norm) * axis_norm
-    perp = d_pos - b_pos - parallel
-    
-    if np.linalg.norm(perp) < 1e-10:
-        return
-    
-    perp_axis = np.cross(axis_norm, perp / np.linalg.norm(perp))
-    
-    cos_a = np.cos(angle_diff)
-    sin_a = np.sin(angle_diff)
-    K = np.array([[0, -perp_axis[2], perp_axis[1]],
-                  [perp_axis[2], 0, -perp_axis[0]],
-                  [-perp_axis[1], perp_axis[0], 0]])
-    R = np.eye(3) + sin_a * K + (1 - cos_a) * (K @ K)
-    
-    new_perp = R @ perp
-    new_d_pos = b_pos + parallel + new_perp
-    
-    x,y,z = new_d_pos.tolist()
-    bond = self.getBond(c.index, d.index)
-    #print("got bond")
-    bond.vector = [x-c.x,y-c.y,z-c.z]
-    #since vectors are truth source.
-    #for b1 in self.bonds:
-    #    dx = b1.atomTo.x - b1.atomFrom.x
-    #    dy = b1.atomTo.y - b1.atomFrom.y
-    #    dz = b1.atomTo.z - b1.atomFrom.z
-#
-    #    b1.vector[0] = dx
-    #    b1.vector[1] = dy
-    #    b1.vector[2] = dz
-    c.startRegen()
+  def setDihedralAngle(self, aIn: atom, bIn: atom, cIn: atom, dIn: atom, target_angle: float) -> None: #AI
+    a, b, c, d = map(lambda x: np.array(x, dtype=float), (aIn.XYZAsVector(), bIn.XYZAsVector(), cIn.XYZAsVector(), dIn.XYZAsVector()))
+
+    # Current dihedral
+    current = calculateDihedral(aIn, bIn, cIn, dIn)
+    delta = target_angle - current
+
+    # محور rotation = bc axis
+    axis = c - b
+    axis = axis / np.linalg.norm(axis)
+
+    # Translate so c is origin
+    d_rel = d - c
+
+    # Rodrigues rotation
+    def rodrigues(v, k, theta):
+        return (v * np.cos(theta) +
+                np.cross(k, v) * np.sin(theta) +
+                k * np.dot(k, v) * (1 - np.cos(theta)))
+
+    d_rot = rodrigues(d_rel, axis, delta)
+    d1 = c + d_rot
+    self.getBond(cIn.index,dIn.index).vector = [d1[0]-cIn.x,d1[1]-cIn.y,d1[2]-cIn.z]
+    bIn.startRegen()
   
   def rotateBondAroundOther(self, center_atom: atom, reference_bond: bond, 
                            target_bond: bond, angle_diff: float) -> None:

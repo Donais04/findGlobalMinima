@@ -165,7 +165,7 @@ class Algorithm():
         elif self.alg == "basinhopping":
             list = basinhopping(**self.kwargs).x
         elif self.alg == "differential_evolution":
-            print(len(self.kwargs['x0']), len(self.kwargs['bounds']))
+            #print(len(self.kwargs['x0']), len(self.kwargs['bounds']))
             list = differential_evolution(**self.kwargs).x
         elif self.alg == "dual_annealing":
             list = dual_annealing(**self.kwargs).x
