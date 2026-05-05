@@ -1,10 +1,9 @@
 from algs import *
 import itertools
-from concurrent.futures import ProcessPoolExecutor
 
 _FILE_TO_READ = "lessNAD+.mol"
 
-
+#TODO add nr to pym
 
 
 #minimize recombination [1,2,3] mutation [1,2,3]
@@ -21,6 +20,7 @@ if __name__ == "__main__":
     stage = 2
     type = ""
     randomIt = True
+    skip = False
     for i in sys.argv[2:]:
       if i[0] == "-":
         kiss.append([])
@@ -28,7 +28,7 @@ if __name__ == "__main__":
       else:
         kiss[-1].append(i)
     i = 0
-    print(kiss)
+    #print("wish", wish, "kiss", kiss)
     while i < len(wish):
       if wish[i] == 'r':
         repeat = int(kiss.pop(i)[0])
@@ -69,10 +69,17 @@ if __name__ == "__main__":
         kiss.pop(i)
         wish.pop(i)
         randomIt = False
+        i += -1
       elif wish[i] == 'db':
         kiss.pop(i)
         wish.pop(i)
         debug = True
+        i += -1
+      elif wish[i] == 'skip':
+        kiss.pop(i)
+        wish.pop(i)
+        skip = True
+        i += -1
       i += 1
     kiss1= []
     for i in range(len(kiss)):
@@ -81,7 +88,7 @@ if __name__ == "__main__":
     kiss = kiss1
     print("Simulating all combinations between " + str(kiss) + ("" if repeat == 1 else (" " + str(repeat) + " times")))
     miss = list(itertools.product(*kiss))
-    print("miss ", miss)
+    #print("miss ", miss)
     liss = []
     for i in range(len(miss)):
       builder = []
@@ -94,7 +101,7 @@ if __name__ == "__main__":
         except:
           builder.append([wish[j],miss[i][j]])
       liss.append(builder)
-    print(liss)
+    #print(liss)
     count = 0
     for _ in range(repeat):
       for i in liss:
@@ -103,7 +110,7 @@ if __name__ == "__main__":
         myMol.molToMine(_FILE_TO_READ)
         if randomIt:
           myMol.rando()
-        algs.append(Algorithm(myMol, alg, i, id = count, b=batch, stage=stage, listType=type, rand=randomIt))
+        algs.append(Algorithm(myMol, alg, i, id = count, b=batch, stage=stage, listType=type, rand=randomIt, skip1=skip))
 
 def f(alg:Algorithm) -> int:
     #print("here")
@@ -111,7 +118,7 @@ def f(alg:Algorithm) -> int:
       alg.run()
     else:
       while(True):
-        do = input("What would you like to do to the molocule? 0: print as mol, 1: edit list, 2: print as type, 3: randomize, 4: exit")
+        do = input("What would you like to do to the molocule? 0: print as mol, 1: edit list, 2: print as type, 3: randomize, 4: perform stage 1, 5: run, 6: edit settings, 7: exit")
         try:
           if do == "0":
             print(alg.mol.mineToMol())
@@ -123,10 +130,30 @@ def f(alg:Algorithm) -> int:
             alg.listInFunc(l)
           elif do == "2":
             print(alg.listOutFunc())
+          elif do == "3":
+            alg.mol.rando()
           elif do == "4":
+            print("starting at", alg.mol.scoreFull())
+            newAlg = Algorithm(alg.mol,stage=1,listType="XYZ")
+            newAlg.run()
+            alg.mol.listToMineXYZ(newAlg.mol.mineToListXYZ())
+            print("done to score", alg.mol.scoreFull())
+          elif do == '5':
+            alg.run()
+          elif do == '6':
+            setting = input("what setting do you want to change from the following: " + str(list(alg.kwargs.keys())))
+            change = input("and what do you want to change it to? It is currently at " + str(alg.kwargs[setting]))
+            try:
+              if "." in change:
+                alg.kwargs[setting] = float(change)
+              else:
+                alg.kwargs[setting] = int(change)
+            except:
+              alg.kwargs[setting] = change
+          elif do == "7":
             exit(0)
-        except:
-          print("error, try again")
+        except Exception as e:
+          print("error:",e)
     if not(noWrite):
       alg.save()
     print(i)

@@ -13,12 +13,14 @@ class Algorithm():
     params: list[list]
     id: int
     stage: int
+    skip: bool
     listType: str
     def __init__(self, mol: molocule, alg: str = "minimize", other: list[list] = [], 
-                 name: str = "", id: int = -1, b: str = "", stage: int = 2, listType: str = "XYZ", rand: bool = True):
+                 name: str = "", id: int = -1, b: str = "", stage: int = 2, listType: str = "XYZ", skip1: bool = False, rand: bool = True):
         if stage == 2:
             print("Initializing algorithm " + alg + " with id " + str(id) + " with params " + str(other))
         self.listType = listType
+        self.skip = skip1
         self.stage = stage
         self.params = other
         self.kwargs = {}
@@ -92,7 +94,14 @@ class Algorithm():
                 'func': ObjectiveFunction(self.mol, self.listInFunc),
                 'bounds': bounds,
                 'x0': x0,
-                'args': ()#,
+                'maxiter':1000,
+                'minimizer_kwargs':None, 
+                'initial_temp':5230,
+                'restart_temp_ratio':2.e-5,
+                'visit':2.62,
+                'accept':-5.0,
+                'maxfun':1e7,
+                'no_local_search':False
                 #'callback': callAn
             }
         
@@ -132,14 +141,15 @@ class Algorithm():
         if self.stage == 2:
             print("init " + str(self.mol.scoreFull()))
             print("running " + str(self.id))
-            newAlg = Algorithm(self.mol,stage=1,listType="XYZ")
-            newAlg.run()
-            self.mol.listToMineXYZ(newAlg.mol.mineToListXYZ())
-            self.kwargs['x0'] = self.listOutFunc()
-            if 'func' in self.kwargs.keys():
-                print("starting from " + str(self.kwargs['func'](self.kwargs['x0'])))
-            else:
-                print("starting from " + str(self.kwargs['fun'](self.kwargs['x0'])))
+            if not(self.skip):
+                newAlg = Algorithm(self.mol,stage=1,listType="XYZ")
+                newAlg.run()
+                self.mol.listToMineXYZ(newAlg.mol.mineToListXYZ())
+                self.kwargs['x0'] = self.listOutFunc()
+                if 'func' in self.kwargs.keys():
+                    print("starting from " + str(self.kwargs['func'](self.kwargs['x0'])))
+                else:
+                    print("starting from " + str(self.kwargs['fun'](self.kwargs['x0'])))
         #print(self.kwargs['x0'])
         if 'bounds' in self.kwargs.keys():
             for i in range(len(self.kwargs['x0'])):

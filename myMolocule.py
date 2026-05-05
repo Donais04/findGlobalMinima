@@ -21,6 +21,8 @@ class bond():
     self.atomTo = t
     self.bondType = n
     self.vector = [t.x - f.x,t.y - f.y,t.z - f.z]
+    self.yaw = math.atan2(self.vector[1], self.vector[0])
+    self.pitch = math.atan2(self.vector[2], self.getMagnitude())
     
   
   def getMagnitude(self)-> float:
@@ -33,14 +35,10 @@ class bond():
     return [self.atomFrom.index,self.atomTo.index]
   
   def getAngleTo(self, other) -> float:
-    #raise Exception("shouldn't be here")
-    v1 = np.array(self.vector) #AI written
-    v2 = np.array(other.vector)
-    dot_product = np.dot(v1, v2)
-    magnitude_v1 = np.linalg.norm(v1)
-    magnitude_v2 = np.linalg.norm(v2)
-    cos_angle = dot_product / (magnitude_v1 * magnitude_v2)
-    return np.arccos(np.clip(cos_angle, -1, 1))
+    #print("line 38", self, "\n", other)
+    v1_u = self.vector / np.linalg.norm(self.vector)
+    v2_u = other.vector / np.linalg.norm(other.vector)
+    return np.arccos(np.clip(np.dot(v1_u, v2_u), -1.0, 1.0))
     
   def setBondLength(self, angstrom: float):
     self.changeBondLength(angstrom - self.getMagnitude())
@@ -148,9 +146,6 @@ class bond():
       return 1.49
     raise TypeError("no element found for " + el)
     return -1.0
-    
-    
-
 
 class atom():
     element: str
@@ -680,7 +675,7 @@ class molocule():
     
     returner = []
     big = self.zm.build_z_crds(np.array(self.toRDKitMol().GetConformers()[0].GetPositions())*ureg.angstrom)
-    print(list(big.values()))
+    #print(list(big.values()))
     for i in range(len(big.values())):
       if not (len(str(list(big.values())[i][0]).split(" ")) > 3):
         for j in range(len(list(big.values())[i])):
@@ -693,56 +688,72 @@ class molocule():
           returner.append(value)
           big[i][j] = value
     big[0][0] = [0.0,0.0,0.0]
-    print(big, "\n\n")
-    print("hereeee", self.zm.z)
+    #print(big, "\n\n") #toSHOW
+    #print("hereeee", self.zm.z)
     with open("output.json", 'w') as f:
       f.write(json.dumps(big))
     
       
     return returner
+  
+  def getBond(self, a: int, b: int) -> bond:
+    for j in range(len(self.bonds)):
+      i = self.bonds[j]
+      if ((i.atomTo.index == a and i.atomFrom.index == b) or
+          (i.atomTo.index == b and i.atomFrom.index == a)):
+        return i
+    else:
+      raise ValueError("bond not found")
     
   def zMatrixToMine(self, zmat):
+    print(self.zm.z)
 
-    def getBond(a: int, b: int) -> bond:
-      for j in range(len(self.bonds)):
-        i = self.bonds[j]
-        if ((i.atomTo.index == a and i.atomFrom.index == b) or
-            (i.atomTo.index == b and i.atomFrom.index == a)):
-          return i
-      else:
-        raise ValueError("bond not found")
+    
+    print("zmat",zmat)
       
     for i in range(len(self.zm.z)):
 
         if i == 0:
-            atom.x, atom.y, atom.z = 0.0, 0.0, 0.0
+            self.atoms[0].x, self.atoms[0].y, self.atoms[0].z = 0.0, 0.0, 0.0
 
         elif i == 1:
-            b = getBond(self.zm.z[i][0],self.zm.z[i][1])
-            b.setBondLength(zmat[1])
+            #print(self.getBond(3,2).getMagnitude(), self.zm.z[i], 0)
+            b = self.getBond(self.zm.z[i][0], self.zm.z[i][1])
+            b.setBondLength(zmat[0])
+            #print(self.getBond(3,2).getMagnitude(), self.zm.z[i], 1)
 
         elif i == 2:
-            b1 = getBond(self.zm.z[i][0],self.zm.z[i][1])
-            b1.setBondLength(zmat[2])
-            b2 = getBond(self.zm.z[i][2],self.zm.z[i][1])
-            
-            self.rotateBondAroundOther(self.zm.z[i][0], b1, b2, zmat[3] - b2.getAngleTo(b1))
+            #print(self.getBond(3,2).getMagnitude(), self.zm.z[i], 0)
+            b1 = self.getBond(self.zm.z[i][0],self.zm.z[i][1])
+            b2 = self.getBond(self.zm.z[i][2],self.zm.z[i][1])
+            currAngle = angle33DPoints(self.atoms[self.zm.z[i][0]].XYZAsVector(),
+                                        self.atoms[self.zm.z[i][1]].XYZAsVector(),
+                                        self.atoms[self.zm.z[i][2]].XYZAsVector())
+            b1.setBondLength(zmat[1])
+            self.rotateBondAroundOther(self.zm.z[i][0], b2, b1, zmat[2] - currAngle)
+            #print(self.getBond(3,2).getMagnitude(), self.zm.z[i], 2)
 
         else:
-            zind = (i-1)*3
-            b1 = getBond(self.zm.z[i][0],self.zm.z[i][1])
+            zind = (i-2)*3
+            b1 = self.getBond(self.zm.z[i][0],self.zm.z[i][1])
+            b2 = self.getBond(self.zm.z[i][2],self.zm.z[i][1])
+            currAngle = angle33DPoints(self.atoms[self.zm.z[i][0]].XYZAsVector(),
+                                        self.atoms[self.zm.z[i][1]].XYZAsVector(),
+                                        self.atoms[self.zm.z[i][2]].XYZAsVector())
+            #print(zind, self.getBond(3,2).getMagnitude(), self.zm.z[i], 0)
             b1.setBondLength(zmat[zind])
-            b2 = getBond(self.zm.z[i][2],self.zm.z[i][1])
+            #print(zind, self.getBond(3,2).getMagnitude(), self.zm.z[i], 1)
+            self.rotateBondAroundOther(self.zm.z[i][0], b2, b1, zmat[zind+1] - currAngle)
+            #print(zind, self.getBond(3,2).getMagnitude(), self.zm.z[i], 2)
             
-            self.rotateBondAroundOther(self.zm.z[i][0], b1, b2, zmat[zind+1] - b2.getAngleTo(b1))
-            
-            self.setDihedralAngle(self.atoms[self.zm.z[i][0]],
-                                  self.atoms[self.zm.z[i][1]],
+            self.setDihedralAngle(self.atoms[self.zm.z[i][3]],
                                   self.atoms[self.zm.z[i][2]],
-                                  self.atoms[self.zm.z[i][3]],
+                                  self.atoms[self.zm.z[i][1]],
+                                  self.atoms[self.zm.z[i][0]],
                                   zmat[zind+2])
+            #print(zind, self.getBond(3,2).getMagnitude(), self.zm.z[i], 3)
           
-    #self.atoms[0].startRegen()
+    self.atoms[0].startRegen()
     
   def zmatBounds(self) -> list[tuple[float, float]]:
     bounds = []
@@ -867,18 +878,20 @@ class molocule():
     new_perp = R @ perp
     new_d_pos = b_pos + parallel + new_perp
     
-    d.x, d.y, d.z = new_d_pos.tolist()
-    
+    x,y,z = new_d_pos.tolist()
+    bond = self.getBond(c.index, d.index)
+    #print("got bond")
+    bond.vector = [x-c.x,y-c.y,z-c.z]
     #since vectors are truth source.
-    for b1 in self.bonds:
-        dx = b1.atomTo.x - b1.atomFrom.x
-        dy = b1.atomTo.y - b1.atomFrom.y
-        dz = b1.atomTo.z - b1.atomFrom.z
-
-        b1.vector[0] = dx
-        b1.vector[1] = dy
-        b1.vector[2] = dz
-    #d.startRegen()
+    #for b1 in self.bonds:
+    #    dx = b1.atomTo.x - b1.atomFrom.x
+    #    dy = b1.atomTo.y - b1.atomFrom.y
+    #    dz = b1.atomTo.z - b1.atomFrom.z
+#
+    #    b1.vector[0] = dx
+    #    b1.vector[1] = dy
+    #    b1.vector[2] = dz
+    c.startRegen()
   
   def rotateBondAroundOther(self, center_atom: atom, reference_bond: bond, 
                            target_bond: bond, angle_diff: float) -> None:
@@ -911,28 +924,31 @@ class molocule():
     new_vec = parallel + new_perp
     
     target_bond.vector = new_vec.tolist()
-    target_bond.atomTo.startRegen()
+    target_bond.atomFrom.startRegen()
 
 
 
 
 
 def calculateDihedral(a: atom, b: atom, c: atom, d: atom) -> float:
-    """Calculate dihedral angle (in radians) between four atoms a-b-c-d."""
-    v1 = np.array([a.x - b.x, a.y - b.y, a.z - b.z])
-    v2 = np.array([b.x - c.x, b.y - c.y, b.z - c.z])
-    v3 = np.array([c.x - d.x, c.y - d.y, c.z - d.z])
-    
-    n1 = np.cross(v1, v2)
-    n2 = np.cross(v2, v3)
-    
-    dot = np.dot(n1, n2)
-    norm = np.linalg.norm(n1) * np.linalg.norm(n2)
-    
-    if norm < 1e-10:
-        return 0.0
-    
-    return np.arctan2(np.dot(np.cross(n1, n2), v2), dot)
+    p0 = np.array(a.XYZAsVector())
+    p1 = np.array(b.XYZAsVector())
+    p2 = np.array(c.XYZAsVector())
+    p3 = np.array(d.XYZAsVector())
+
+    b0 = -1.0*(p1 - p0)
+    b1 = p2 - p1
+    b2 = p3 - p2
+
+    b0xb1 = np.cross(b0, b1)
+    b1xb2 = np.cross(b2, b1)
+
+    b0xb1_x_b1xb2 = np.cross(b0xb1, b1xb2)
+
+    y = np.dot(b0xb1_x_b1xb2, b1)*(1.0/np.linalg.norm(b1))
+    x = np.dot(b0xb1, b1xb2)
+
+    return np.arctan2(y, x)
 
 def rotate_vector_quaternion(vector, axis, angle: float): #AI written
   #AXIS: first index is roll, second is pitch, third is yaw
@@ -968,7 +984,17 @@ def rotate_vector_quaternion(vector, axis, angle: float): #AI written
 
 
 
+def angle33DPoints(a1,b1,c1):
+  a = np.array(a1)
+  b = np.array(b1)
+  c = np.array(c1)
+  ba = a - b
+  bc = c - b
 
+  cosine_angle = np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc))
+  return np.arccos(cosine_angle)
+
+  
 
 
 def compute_angle(v1, v2):
