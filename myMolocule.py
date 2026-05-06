@@ -1,14 +1,14 @@
 import numpy as np
 import random, math, os, json, time
 
-from openmm.app import *
-from openmm import *
-from openmm.unit import *
+#from openmm.app import *
+#from openmm import *
+#from openmm.unit import *
 import numpy as np
 from rdkit import Chem
 #from openmmforcefields.generators import GAFFTemplateGenerator
 from rdkit.Chem import rdForceFieldHelpers
-from r2z import *
+from r2z import * # type: ignore
 from r2z.zmatrix import ZMatrix, pts_to_bond, pts_to_angle, pts_to_dihedral
 
 class bond():
@@ -36,7 +36,7 @@ class bond():
   
   def getAngleTo(self, other) -> float:
     #print("line 38", self, "\n", other)
-    v1_u = self.vector / np.linalg.norm(self.vector)
+    v1_u = self.vector / np.linalg.norm(self.vector) # type: ignore
     v2_u = other.vector / np.linalg.norm(other.vector)
     return np.arccos(np.clip(np.dot(v1_u, v2_u), -1.0, 1.0))
     
@@ -264,7 +264,7 @@ class molocule():
       trueBondList += i.out
     self.bonds = trueBondList
     self.atoms = atomList
-    self.zm = ZMatrix(self.toRDKitMol())
+    self.rdkMol = self.toRDKitMol()
 
   def mineToMol(self) -> str:
     returnBuilder: list[str] = ["","  WebMO",""]
@@ -472,6 +472,11 @@ class molocule():
 
 
   def scoreFull(self, args = {}) -> float:
+    #conf = self.rdkMol.GetConformer()
+    #for i, atom in enumerate(self.atoms):
+    #    conf.SetAtomPosition(i, (atom.x, atom.y, atom.z))
+
+    #score = rdForceFieldHelpers.MMFFOptimizeMolecule(self.rdkMol, maxIters=0)
     score = rdForceFieldHelpers.MMFFOptimizeMoleculeConfs(self.toRDKitMol(), maxIters=0)[0][1]
     self.lastScore = score
     return score
@@ -655,7 +660,8 @@ class molocule():
   
   
   def mineToZMatrix(self):
-    
+    if not(self.zm):
+      self.zm = ZMatrix(self.toRDKitMol())
     
     returner = []
     big = self.zm.build_z_crds(np.array(self.toRDKitMol().GetConformers()[0].GetPositions())*ureg.angstrom)
@@ -690,6 +696,8 @@ class molocule():
       raise ValueError("bond not found")
     
   def zMatrixToMine(self, zmat):
+    if not(self.zm):
+      self.zm = ZMatrix(self.toRDKitMol())
     #print(self.zm.z)
 
     
@@ -742,6 +750,10 @@ class molocule():
     self.atoms[0].startRegen()
     
   def zmatBounds(self) -> list[tuple[float, float]]:
+    returner = [(0.6,2.0),(0.6,2.0),(-1*np.pi,np.pi)]
+    for i in range(len(self.zm.z)-3):
+      returner += [(0.6,2.0),(-1*np.pi,np.pi),(-1*np.pi,np.pi)]
+    return returner
     bounds = []
     
     # Use the same BFS order as mineToZMatrix
