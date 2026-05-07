@@ -66,7 +66,7 @@ class bond():
     self.atomFrom.startRegen()
     self.yaw += dAngle
     
-  def resetAngle(self, axis: str):
+  def resetAngle(self, axis: str = 'x'):
     if axis == 'x':
       self.vector = [self.getMagnitude(), 0.0, 0.0]
     elif axis == 'y':
@@ -243,6 +243,7 @@ class molocule():
   bonds: list[bond]
   lastScore: float
   fromFile: str
+  zm: ZMatrix
   
   def molToMine(self, file: str):
     self.fromFile = file
@@ -265,6 +266,7 @@ class molocule():
     self.bonds = trueBondList
     self.atoms = atomList
     self.rdkMol = self.toRDKitMol()
+    self.zm = ZMatrix(self.rdkMol)
 
   def mineToMol(self) -> str:
     returnBuilder: list[str] = ["","  WebMO",""]
@@ -660,8 +662,6 @@ class molocule():
   
   
   def mineToZMatrix(self):
-    if not(self.zm):
-      self.zm = ZMatrix(self.toRDKitMol())
     
     returner = []
     big = self.zm.build_z_crds(np.array(self.toRDKitMol().GetConformers()[0].GetPositions())*ureg.angstrom)
@@ -680,8 +680,8 @@ class molocule():
     big[0][0] = [0.0,0.0,0.0]
     #print(big, "\n\n") #toSHOW
     #print("hereeee", self.zm.z)
-    with open("output.json", 'w') as f:
-      f.write(json.dumps(big))
+    #with open("output.json", 'w') as f:
+    #  f.write(json.dumps(big))
     
       
     return returner
@@ -866,7 +866,7 @@ class molocule():
     axis = np.cross(ba_unit, bc_unit)
     axis_norm = np.linalg.norm(axis)
 
-    if axis_norm < 1e-8:
+    if axis_norm < 1e-10:
         raise ValueError("Points are colinear; rotation axis is undefined.")
 
     axis = axis / axis_norm

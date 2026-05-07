@@ -1,0 +1,123 @@
+# Showcase
+Ensure savedFiles + moloculeIndex.json are cleared
+Have a WebMO leastNAD+.mol ready to show zmatrix
+- ### Give small demonstration
+  - Do a differential evolution with NAD+ many workers with disp
+    - Keep that in corner
+    - Explain what it's doing
+  - Do a minimize with different tol and methods, 9 repeats, almostNothing.mol
+    - Total of 3x3x9
+    - Let that run in second corner
+    - When done later on, move over to excel to analyze
+- ### Discuss what's going on
+  - ##### Draw 4 diagrams
+    - One for each class: atom, bond, molocule, algorithm
+    - Ensure atom and bond small, molocule med, algorithm big
+  - ##### Atom
+    - Contains an element, XYZ, index, and bonds in+out
+  - ##### Bonds
+    - Contains type (single double), vector, pitch, yaw, and reference to atom from + to
+    - Vector, pitch, magnitude, and yaw can all be adjusted
+    - getAimMag function for getting an example bond length
+  - ##### Molocule
+    - Contains list of atoms + bonds
+    - Draw how created
+      - Creates list of atoms and gives each connections
+      - Atom 0 then called to generate vectors out BFS
+      - Returns bonds to keep
+    - Same with regeneration
+    - Must start from .mol file
+    - Can output to .mol, ORCA .inp, .PDB, or RDKit Mol
+    - Three choices from here
+      - Usually a rando() is performed
+        - Show randoed mol using db
+      - Try -nr for keep it same
+      - Or do funny and resetBondAngles()
+        - Show sticks
+    - saveMol
+      - saves to savedFiles + noted in moleculeIndex
+      - read by printJSON.py
+    - Important for later
+      - scoreValitity
+      - scoreFull
+  - ##### Algorithm
+    - Contains a molocule + method + arguments + kwargs
+      - Draw diagram
+        - molocule in one end, control pannel for argument, blackbox for method, kwargs dials on blackbox
+      - Arguments like listType, skip, disp
+      - Method contains function (score), bounds, x0, kwargs
+    - Explain how method works
+      - Molocule is turned into a list of points
+      - Blackbox makes adjustment to list
+      - List is turned into molocule and scored
+      - Blackbox decides whether or not to keep adjustment, or learn, or anything else
+- ### Main variables
+  - Score, list type, and method
+    - Ask which would like to be seen
+  - #### Score
+    - 4 stages planned, 2 implimented
+    - Stage 1:
+      - Very simple, meant for quickest optimization
+      - Scores on 3 things:
+        - Bond angles
+        - Bond lengths
+          - Based on atoms involved
+        - Non-bond distance
+      - Goal is to let it return 0
+        - So don't put settings too high
+    - Stage 2:
+      - Forcefield optimization energy calculation
+      - Based on z-matrix
+    - Stage 3:
+      - XTB energy calculation
+      - Keep in mind, energy calcs can be called up to a million times
+      - 0.1 seconds per is 100000 seconds which is 2 days
+    - Stage 4:
+      - One time r2scan-3c optimization
+      - Then MP2 energy calculated and stored
+  - #### List type
+    - XYZ
+      - An output of the bond vectors
+      - Goes in order of the bonds list in molocule class
+      - Draw a few
+    - PYM
+      - An output of the bonds's pitches, yaws, and magnitudes
+      - Explain pitch, yaw, and roll
+        - Spin, cartwheel, summersault
+      - Pitch and yaw are in relation to x axis
+        - Arbirtary
+      - Explain why pitch and yaw were chosen
+    - FF/forcefield
+      - Technically this is really just a zmatrix but I just started calling it this
+      - Go to toSHOW in myMolocule and put prints
+      - Explain zmatrix
+  - #### Method
+    - These are the 
+    - make 2d graph to show
+    - There was another we didn't get to
+- ### Total scoring
+  - $\frac{1}{energy^{a}*time^{\frac{1}{a}}}$
+  - a is how much you value finding a lower minima vs time cost
+  - Through project, a = 1
+  - negative energy
+- ### Next steps
+  - 3D renderer
+  - other method
+  - Third stage
+  - Cleaning code/file space to look professional
+  - Get direct and shgo working
+  - Multithreading
+  - Do testing with bounds space
+  - Getting more data on various methods to find optimal settings
+    - Then work on initial goal - find best algorithm for this task
+
+
+
+### Notes
+- Spelled molecule wrong through this entire project
+- AI was used in vector math
+- Possible the same point could come up many times
+- Inbuilt forcefield optimization
+  - Unused because can't get back to my molocule
+  - Plus, destroy the flow
+- Filenames based on last 5 num of unix millisecond

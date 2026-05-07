@@ -235,9 +235,9 @@ def callAn(x, f, context):
     if context == 0:
         print("minimum detected in the annealing process")
     elif context == 1:
-        print("detection occurred in the local search process")
+        print("detection occurred in the local search process!!!")
     elif context == 2:
-        print("detection done in the dual annealing process")
+        print("detection done in the dual annealing process!!!")
 class callSHGO:
     def __init__(self, mol: molocule, listfunc):
         self.listFunc = listfunc
@@ -274,11 +274,15 @@ class ObjectiveFunction:
     def __init__(self, mol: molocule, listfunc):
         self.mol = mol
         self.listFunc = listfunc
+        #self.count = 0
     
     def update(self,mol:molocule):
         self.mol = mol
     
     def __call__(self, coords: np.ndarray) -> float:
+        #self.count += 1
+        #if self.count % 1000 == 0:
+        #    print(self.count)
         self.listFunc(list(coords))
         return self.mol.scoreFull()
 
