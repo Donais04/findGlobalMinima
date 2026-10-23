@@ -2,13 +2,11 @@ from algs import *
 import itertools
 import sys
 
-_FILE_TO_READ = "lessNAD+.mol"
+_FILE_TO_READ = "../data/savedMolecules/lessNAD+.mol"
 
 #TODO add nr to pym
 
 
-#minimize recombination [1,2,3] mutation [1,2,3]
-#[[['recombination', 1], ['mutation', 1]],[['recombination', 1], ['mutation', 2]]]
 noWrite = False
 algs = []
 debug = False
@@ -225,7 +223,7 @@ def displayHelp(alg: str = ""):
       }
 
     global_flags = {
-        "-f FILE": "Input molecule file (default: lessNAD+.mol)",
+        "-f FILE": "Input molecule file (default: ../data/savedMolecules/lessNAD+.mol)",
         "-r N": "Repeat simulation N times",
         "-batch NAME": "Batch label for output grouping",
         "-nw": "Disable writing output files",
@@ -265,7 +263,7 @@ def displayHelp(alg: str = ""):
             print(f"  {k:20} {v}")
 
         print("\nExample:")
-        print("  python main.py minimize -f molecule.mol -r 5 -type xyz\n")
+        print("  python main.py minimize -f ../data/savedMolecules/lessNAD+.mol -r 5 -type xyz\n")
 
     else:
         if alg not in alg_info:

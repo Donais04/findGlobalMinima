@@ -1,0 +1,1 @@
+Code of this repository may be referenced and used as long as notice is given beforehand and proper credit is given.

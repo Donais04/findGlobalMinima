@@ -1,12 +1,7 @@
 import numpy as np
 import random, math, os, json, time
-
-#from openmm.app import *
-#from openmm import *
-#from openmm.unit import *
 import numpy as np
 from rdkit import Chem
-#from openmmforcefields.generators import GAFFTemplateGenerator
 from rdkit.Chem import rdForceFieldHelpers
 from r2z import * # type: ignore
 from r2z.zmatrix import ZMatrix, pts_to_bond, pts_to_angle, pts_to_dihedral
@@ -624,7 +619,7 @@ class molocule():
     return score
 
   
-  def saveMol(self, filename: str = "", path: str = "savedFiles", fileType: str = "mol", other: list[list] = []):
+  def saveMol(self, filename: str = "", path: str = "../data/savedMolecules", fileType: str = "mol", other: list[list] = []):
     if filename == "":
       name = str(int(round(time.time(),3)*1000 % 100000)) + "." + fileType
     else:
@@ -636,12 +631,16 @@ class molocule():
       writer = self.vectorToInp(name[:-4])
     elif fileType == "pdb":
       writer = self.vectorToPDB()
-    if (os.path.exists(path + "/" + name)):
+    os.makedirs(path, exist_ok=True)
+    output_path = os.path.join(path, name)
+    if os.path.exists(output_path):
       name = name + "DupeSomehow" #should not happen
-    with open(path + "/" + name, 'w') as g:
+      output_path = os.path.join(path, name)
+    with open(output_path, 'w') as g:
       g.write(writer)
     data = ""
-    with open("moleculeIndex.json", 'r') as f:
+    index_path = "../data/moleculeIndex.json"
+    with open(index_path, 'r') as f:
       data = json.loads(f.read())
       placer = {
         "fileName":name,
@@ -652,7 +651,7 @@ class molocule():
         placer[other[i][0]] = other[i][1]
       data.append(placer)
       
-    with open("moleculeIndex.json", 'w') as f:
+    with open(index_path, 'w') as f:
       f.write(json.dumps(data))
       
   
@@ -1057,5 +1056,4 @@ def dihedral(a, b, c, d):
         [c.x, c.y, c.z],
         [d.x, d.y, d.z]
     )
-
 
